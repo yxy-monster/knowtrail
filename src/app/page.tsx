@@ -38,6 +38,12 @@ import {
 } from '@/lib/paper-host-bridge';
 import { resolveEmbeddedEntryState } from '@/lib/embedded-entry-state';
 import { loadNotebookSourceCounts, mergeNotebookSourceCounts } from '@/lib/notebook-source-counts';
+import {
+  archiveNotebook,
+  renameNotebook,
+  restoreNotebook,
+  visibleNotebooks,
+} from '@/lib/notebook-lifecycle';
 
 const FEATURED_SOURCE_COUNTS = Object.fromEntries(
   FEATURED_NOTEBOOKS.map(notebook => [notebook.id, notebook.sourceCount]),
@@ -193,7 +199,8 @@ export default function HomePage() {
         .map((notebook, index) => ({ ...notebook, title: normalizeNotebookTitle(notebook.title, index) }));
       const savedActive = window.localStorage.getItem(notebookStorageKey(ACTIVE_NOTEBOOK_STORAGE_KEY));
       setNotebooks(nextNotebooks);
-      setActiveNotebookId(savedActive && nextNotebooks.some(item => item.id === savedActive) ? savedActive : nextNotebooks[0]?.id || null);
+      const availableNotebooks = visibleNotebooks(nextNotebooks);
+      setActiveNotebookId(savedActive && availableNotebooks.some(item => item.id === savedActive) ? savedActive : availableNotebooks[0]?.id || null);
       setNotebooksReady(true);
     } catch {
       const defaults = createDefaultNotebooks();
@@ -324,7 +331,7 @@ export default function HomePage() {
     const id = `workspace-${Date.now()}`;
     const nextNotebook: WorkspaceNotebook = {
       id,
-      title: notebooks.length === 0 ? '未命名工作本' : `未命名工作本 ${notebooks.length + 1}`,
+      title: visibleNotebooks(notebooks).length === 0 ? '未命名文献本' : `未命名文献本 ${visibleNotebooks(notebooks).length + 1}`,
       sourceCount: 0,
       updatedAt: new Date().toISOString(),
       accent: ['from-cyan-50 via-white to-blue-50', 'from-violet-50 via-white to-sky-50', 'from-emerald-50 via-white to-teal-50'][notebooks.length % 3],
@@ -342,6 +349,23 @@ export default function HomePage() {
       return;
     }
     enterWorkbench(id);
+  };
+
+  const renameWorkspaceNotebook = (id: string, title: string) => {
+    setNotebooks(prev => renameNotebook(prev, id, title));
+  };
+
+  const archiveWorkspaceNotebook = (id: string) => {
+    const nextNotebooks = archiveNotebook(notebooks, id);
+    if (nextNotebooks === notebooks) return;
+    setNotebooks(nextNotebooks);
+    if (activeNotebookId === id) {
+      setActiveNotebookId(visibleNotebooks(nextNotebooks)[0]?.id || null);
+    }
+  };
+
+  const restoreWorkspaceNotebook = (id: string) => {
+    setNotebooks(prev => restoreNotebook(prev, id));
   };
 
   const openFeaturedNotebook = (id: string) => {
@@ -390,7 +414,9 @@ export default function HomePage() {
     }
   };
 
-  const activeNotebook = notebooks.find(notebook => notebook.id === activeNotebookId) || notebooks[0] || createDefaultNotebooks()[0];
+  const activeNotebook = visibleNotebooks(notebooks).find(notebook => notebook.id === activeNotebookId)
+    || visibleNotebooks(notebooks)[0]
+    || createDefaultNotebooks()[0];
   const workbenchScopeKey = `${notebookStorageOwner}:${activeNotebook.id}`;
   const featuredFolders = useMemo(
     () => createFeaturedNotebookFolders(activeNotebook.id),
@@ -448,6 +474,9 @@ export default function HomePage() {
             onCreate={createNotebook}
             onOpen={openNotebook}
             onOpenFeatured={openFeaturedNotebook}
+            onRename={renameWorkspaceNotebook}
+            onArchive={archiveWorkspaceNotebook}
+            onRestore={restoreWorkspaceNotebook}
             onShowLanding={() => {
               setShowLanding(true);
               window.history.replaceState(null, '', window.location.pathname);

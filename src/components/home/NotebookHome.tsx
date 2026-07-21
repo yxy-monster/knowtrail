@@ -3,10 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
+  Archive,
   LogOut,
   Plus,
+  RotateCcw,
   Search,
   UserRound,
+  X,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
@@ -15,6 +18,7 @@ import {
   type AccountCenterStatus,
   type WorkspaceNotebook,
 } from '@/components/home/workspace-types';
+import { archivedNotebooks, visibleNotebooks } from '@/lib/notebook-lifecycle';
 import {
   CreateNotebookCard,
   FeaturedNotebookStrip,
@@ -31,6 +35,9 @@ type NotebookHomeProps = {
   onCreate: () => void;
   onOpen: (id: string) => void;
   onOpenFeatured: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onArchive: (id: string) => void;
+  onRestore: (id: string) => void;
   onShowLanding: () => void;
   onSignOut: () => void;
 };
@@ -91,12 +98,34 @@ export function NotebookHome({
   onCreate,
   onOpen,
   onOpenFeatured,
+  onRename,
+  onArchive,
+  onRestore,
   onShowLanding,
   onSignOut,
 }: NotebookHomeProps) {
   const [query, setQuery] = useState('');
+  const [editingNotebook, setEditingNotebook] = useState<WorkspaceNotebook | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [archiveTarget, setArchiveTarget] = useState<WorkspaceNotebook | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredNotebooks = notebooks.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
+  const activeNotebooks = visibleNotebooks(notebooks);
+  const archivedItems = archivedNotebooks(notebooks);
+  const filteredNotebooks = activeNotebooks.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
+  const filteredArchivedItems = archivedItems.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
+  const hasSearchMatches = filteredNotebooks.length > 0 || filteredArchivedItems.length > 0;
+
+  const beginRename = (notebook: WorkspaceNotebook) => {
+    setEditingNotebook(notebook);
+    setEditingTitle(notebook.title);
+  };
+
+  const confirmRename = () => {
+    if (!editingNotebook || !editingTitle.trim()) return;
+    onRename(editingNotebook.id, editingTitle);
+    setEditingNotebook(null);
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -182,10 +211,13 @@ export function NotebookHome({
                   onOpen={() => {
                     if (notebooksReady) onOpen(notebook.id);
                   }}
+                  onRename={() => beginRename(notebook)}
+                  onArchive={() => setArchiveTarget(notebook)}
+                  canArchive={activeNotebooks.length > 1}
                 />
               ))}
             </div>
-          ) : (
+          ) : !hasSearchMatches ? (
             <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
               <Search className="h-6 w-6 text-slate-400" />
               <p className="mt-3 text-sm font-semibold text-slate-900">没有匹配的文献本</p>
@@ -197,8 +229,43 @@ export function NotebookHome({
                 清除搜索
               </button>
             </div>
-          )}
+          ) : null}
         </section>
+
+        {archivedItems.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-5" data-testid="notebook-home-archived">
+            <button
+              type="button"
+              onClick={() => setShowArchived(open => !open)}
+              className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-expanded={showArchived || Boolean(normalizedQuery)}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <Archive className="h-4 w-4" /> 已归档
+              </span>
+              <span className="text-xs text-slate-500">{filteredArchivedItems.length} 个，可随时恢复</span>
+            </button>
+            {(showArchived || Boolean(normalizedQuery)) && (
+              <div className="mt-3 space-y-2">
+                {filteredArchivedItems.map(notebook => (
+                  <div key={notebook.id} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{notebook.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">{notebook.sourceCount} 个来源 · 内容仍保留</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRestore(notebook.id)}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> 恢复
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {!embedded && accountStatus?.configured && !accountSession && (
           <div className="mx-auto mt-6 flex max-w-7xl items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -212,6 +279,46 @@ export function NotebookHome({
           </div>
         )}
       </main>
+
+      {editingNotebook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={() => setEditingNotebook(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="rename-notebook-title">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="rename-notebook-title" className="text-lg font-semibold text-slate-950">重命名文献本</h2>
+              <button type="button" onClick={() => setEditingNotebook(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="关闭重命名">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">名称会保留在当前账号空间，来源和问答记录不受影响。</p>
+            <input
+              value={editingTitle}
+              onChange={event => setEditingTitle(event.target.value)}
+              onKeyDown={event => { if (event.key === 'Enter') confirmRename(); }}
+              maxLength={60}
+              autoFocus
+              className="mt-4 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              aria-label="文献本名称"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setEditingNotebook(null)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">取消</button>
+              <button type="button" onClick={confirmRename} disabled={!editingTitle.trim()} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45">保存名称</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {archiveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={() => setArchiveTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="archive-notebook-title">
+            <h2 id="archive-notebook-title" className="text-lg font-semibold text-slate-950">归档“{archiveTarget.title}”</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">归档只会从最近打开中收起文献本，不删除来源、问答和产物，之后可以在“已归档”中恢复。</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setArchiveTarget(null)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">取消</button>
+              <button type="button" onClick={() => { onArchive(archiveTarget.id); setArchiveTarget(null); setShowArchived(true); }} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">确认归档</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

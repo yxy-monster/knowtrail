@@ -22,8 +22,14 @@ assert.match(home, /focus-visible:ring-/, 'Home commands need visible keyboard f
 assert.match(cards, /grid-cols-2[\s\S]*sm:grid-cols-4/, 'Featured notebooks must fit one row on normal desktop widths');
 assert.match(cards, /min-h-\[140px\]/, 'Featured cards must use a compact stable height');
 assert.match(cards, /min-h-\[184px\]/, 'Notebook cards must avoid the previous oversized layout');
-assert.doesNotMatch(cards, /MoreVertical/, 'Notebook cards must not show a fake overflow menu');
+assert.match(cards, /data-testid={`notebook-home-actions-\$\{notebook\.id\}`}/, 'Notebook cards need a real lifecycle menu');
+assert.match(cards, /重命名/, 'Notebook cards must expose rename');
+assert.match(cards, /归档/, 'Notebook cards must expose archive');
 assert.match(cards, /ArrowUpRight/, 'Open action must remain visible without relying on hover');
 assert.match(cards, /focus-visible:ring-/, 'Cards need visible keyboard focus');
+
+assert.match(home, /已归档/, 'Archived notebooks need a visible recovery section');
+assert.match(home, /恢复/, 'Archived notebooks need a restore action');
+assert.match(home, /重命名文献本/, 'Rename needs a clear dialog instead of a prompt');
 
 console.log('notebook home usability contract passed');

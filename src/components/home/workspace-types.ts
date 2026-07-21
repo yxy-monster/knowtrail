@@ -6,6 +6,7 @@ export interface WorkspaceNotebook {
   sourceCount: number;
   updatedAt: string;
   accent: string;
+  archivedAt?: string;
 }
 
 export type AccountCenterStatus = {
