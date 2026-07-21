@@ -38,7 +38,7 @@ assert.equal(resolveLibraryUploadTarget(null, folders), null);
 
 async function runSourceCountContract() {
   const sourceCounts = await loadNotebookSourceCounts({
-    notebookIds: ['featured-research-reading', 'workspace-empty', 'workspace-failed'],
+    notebookIds: ['featured-research-reading', 'template-copy-research', 'workspace-empty', 'workspace-failed'],
     request: async input => {
       const notebookId = new URL(String(input), 'http://local.test').searchParams.get('notebookId');
       if (notebookId === 'workspace-failed') return new Response(null, { status: 503 });
@@ -49,11 +49,13 @@ async function runSourceCountContract() {
   });
   assert.deepEqual(sourceCounts, {
     'featured-research-reading': 1,
+    'template-copy-research': 0,
     'workspace-empty': 0,
   });
   assert.deepEqual(mergeNotebookSourceCounts({
     notebooks: [
       { id: 'featured-research-reading', title: 'Research', sourceCount: 2, updatedAt: '', accent: '' },
+      { id: 'template-copy-research', templateId: 'featured-research-reading', title: 'Research copy', sourceCount: 2, updatedAt: '', accent: '' },
       { id: 'workspace-empty', title: 'Empty', sourceCount: 4, updatedAt: '', accent: '' },
       { id: 'workspace-failed', title: 'Failed', sourceCount: 7, updatedAt: '', accent: '' },
     ],
@@ -61,6 +63,7 @@ async function runSourceCountContract() {
     builtInCounts: { 'featured-research-reading': 2 },
   }), [
     { id: 'featured-research-reading', title: 'Research', sourceCount: 3, updatedAt: '', accent: '' },
+    { id: 'template-copy-research', templateId: 'featured-research-reading', title: 'Research copy', sourceCount: 2, updatedAt: '', accent: '' },
     { id: 'workspace-empty', title: 'Empty', sourceCount: 0, updatedAt: '', accent: '' },
     { id: 'workspace-failed', title: 'Failed', sourceCount: 7, updatedAt: '', accent: '' },
   ]);

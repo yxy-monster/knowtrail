@@ -43,7 +43,7 @@ export function mergeNotebookSourceCounts({
     if (!Object.prototype.hasOwnProperty.call(persistedCounts, notebook.id)) return notebook;
     return {
       ...notebook,
-      sourceCount: (builtInCounts[notebook.id] || 0) + persistedCounts[notebook.id],
+      sourceCount: (builtInCounts[notebook.templateId || notebook.id] || 0) + persistedCounts[notebook.id],
     };
   });
 }

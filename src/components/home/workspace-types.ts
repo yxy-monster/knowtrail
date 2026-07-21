@@ -7,6 +7,7 @@ export interface WorkspaceNotebook {
   updatedAt: string;
   accent: string;
   archivedAt?: string;
+  templateId?: string;
 }
 
 export type AccountCenterStatus = {

@@ -31,6 +31,7 @@ assert.match(cards, /归档/, 'Notebook cards must expose archive');
 assert.match(cards, /ArrowUpRight/, 'Open action must remain visible without relying on hover');
 assert.match(cards, /focus-visible:ring-/, 'Cards need visible keyboard focus');
 assert.match(cards, /pointer-events-none[\s\S]*item\.title/, 'Featured card content must not intercept the full-card click target');
+assert.match(cards, /创建个人副本/, 'Featured cards must explain that using a template creates an independent notebook copy');
 
 assert.match(home, /已归档/, 'Archived notebooks need a visible recovery section');
 assert.match(home, /恢复/, 'Archived notebooks need a restore action');

@@ -195,13 +195,19 @@ export function isFeaturedNotebookId(id: string | null | undefined) {
   return FEATURED_NOTEBOOKS.some(notebook => notebook.id === id);
 }
 
-export function featuredNotebookToWorkspace(notebook: FeaturedNotebook): WorkspaceNotebook {
+export function featuredTemplateId(notebook: Pick<WorkspaceNotebook, 'id' | 'templateId'>) {
+  const candidate = notebook.templateId || notebook.id;
+  return isFeaturedNotebookId(candidate) ? candidate : null;
+}
+
+export function featuredNotebookToWorkspace(notebook: FeaturedNotebook, copyId = notebook.id): WorkspaceNotebook {
   return {
-    id: notebook.id,
+    id: copyId,
     title: notebook.title,
     sourceCount: notebook.sourceCount,
     updatedAt: FEATURED_UPDATED_AT,
     accent: notebook.accent,
+    templateId: notebook.id,
   };
 }
 

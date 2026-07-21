@@ -28,7 +28,7 @@ import {
   FEATURED_NOTEBOOKS,
   createFeaturedNotebookFolders,
   featuredNotebookToWorkspace,
-  isFeaturedNotebookId,
+  featuredTemplateId,
 } from '@/components/home/featured-notebooks';
 import {
   installPaperHostBridge,
@@ -65,6 +65,7 @@ function AcademicPresenterContent({
   accountSession,
   accountAuthRequired,
   paperHostContext,
+  templateCopy,
 }: {
   workspaceTitle: string;
   onBackHome: () => void;
@@ -74,6 +75,7 @@ function AcademicPresenterContent({
   accountSession: AccountAuthSession | null;
   accountAuthRequired: boolean;
   paperHostContext: PaperHostContext;
+  templateCopy: boolean;
 }) {
   const quiet = paperHostContext.enabled;
 
@@ -90,6 +92,7 @@ function AcademicPresenterContent({
         onSignOut={onSignOut}
         embedded={quiet}
         authenticated={Boolean(accountSession)}
+        templateCopy={templateCopy}
       />
       <div className="min-h-0 flex-1 quiet-enter">
         <ThreeColumnLayout
@@ -385,13 +388,11 @@ export default function HomePage() {
     }
     const featured = FEATURED_NOTEBOOKS.find(item => item.id === id);
     if (!featured) return;
-    const workspaceNotebook = featuredNotebookToWorkspace(featured);
-    setNotebooks(prev => {
-      const withoutExisting = prev.filter(notebook => notebook.id !== id);
-      return [{ ...workspaceNotebook, updatedAt: new Date().toISOString() }, ...withoutExisting];
-    });
+    const copyId = `template-copy-${featured.id}-${Date.now()}`;
+    const workspaceNotebook = featuredNotebookToWorkspace(featured, copyId);
+    setNotebooks(prev => [{ ...workspaceNotebook, updatedAt: new Date().toISOString() }, ...prev]);
     setShowSourceGuide(false);
-    enterWorkbench(id);
+    enterWorkbench(copyId);
   };
 
   const openNotebookHome = () => {
@@ -425,10 +426,11 @@ export default function HomePage() {
   const activeNotebook = visibleNotebooks(notebooks).find(notebook => notebook.id === activeNotebookId)
     || visibleNotebooks(notebooks)[0]
     || createDefaultNotebooks()[0];
+  const activeTemplateId = featuredTemplateId(activeNotebook);
   const workbenchScopeKey = `${notebookStorageOwner}:${activeNotebook.id}`;
   const featuredFolders = useMemo(
-    () => createFeaturedNotebookFolders(activeNotebook.id),
-    [activeNotebook.id],
+    () => createFeaturedNotebookFolders(activeTemplateId),
+    [activeTemplateId],
   );
   const featuredSelectedPaperIds = useMemo(
     () => featuredFolders.flatMap(folder => folder.papers.map(paper => paper.id)),
@@ -452,8 +454,8 @@ export default function HomePage() {
     <AppProvider
       key={workbenchScopeKey}
       storageScopeKey={workbenchScopeKey}
-      initialFolders={isFeaturedNotebookId(activeNotebook.id) ? featuredFolders : []}
-      initialSelectedPaperIds={isFeaturedNotebookId(activeNotebook.id) ? featuredSelectedPaperIds : []}
+      initialFolders={activeTemplateId ? featuredFolders : []}
+      initialSelectedPaperIds={activeTemplateId ? featuredSelectedPaperIds : []}
     >
       <LiquidGlassProvider>
         {entered ? (
@@ -466,6 +468,7 @@ export default function HomePage() {
             accountSession={accountSession}
             accountAuthRequired={accountStatus?.authRequired !== false}
             paperHostContext={paperHostContext}
+            templateCopy={Boolean(activeTemplateId)}
           />
         ) : showLanding ? (
           <LandingPage

@@ -36,7 +36,7 @@ export function FeaturedNotebookStrip({
             className="home-motion-card group flex min-h-[140px] cursor-pointer flex-col overflow-hidden rounded-xl border border-white/20 p-4 text-left text-white shadow-[0_10px_28px_rgba(15,23,42,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ background: item.image }}
             data-testid={`notebook-home-featured-${item.id}`}
-            aria-label={`打开精选文献本 ${item.title}`}
+            aria-label={`使用精选模板创建个人副本 ${item.title}`}
           >
             <div className="pointer-events-none flex items-center justify-between gap-2 text-xs font-semibold text-white/90 sm:text-sm">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/92 text-slate-950">
@@ -45,7 +45,10 @@ export function FeaturedNotebookStrip({
               <ArrowUpRight className="h-4 w-4 opacity-70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
             </div>
             <h3 className="pointer-events-none mt-4 text-base font-semibold leading-snug sm:text-lg">{item.title}</h3>
-            <p className="pointer-events-none mt-auto pt-2 text-xs font-medium text-white/75">{item.author} · {item.meta}</p>
+            <div className="pointer-events-none mt-auto flex items-end justify-between gap-2 pt-2 text-xs font-medium text-white/75">
+              <span>{item.author} · {item.meta}</span>
+              <span className="whitespace-nowrap rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold text-white/90">创建个人副本</span>
+            </div>
           </button>
         ))}
       </div>

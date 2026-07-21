@@ -9,6 +9,7 @@ type WorkbenchTopBarProps = {
   onSignOut: () => void;
   embedded: boolean;
   authenticated: boolean;
+  templateCopy?: boolean;
 };
 
 export function WorkbenchTopBar({
@@ -17,6 +18,7 @@ export function WorkbenchTopBar({
   onSignOut,
   embedded,
   authenticated,
+  templateCopy = false,
 }: WorkbenchTopBarProps) {
   const shellClass = embedded
     ? 'z-40 flex h-14 flex-shrink-0 items-center justify-between gap-3 border-b border-[#E4E9F1] bg-white px-3 text-[#142033]'
@@ -43,11 +45,11 @@ export function WorkbenchTopBar({
               {workspaceTitle}
             </p>
             <span className="hidden rounded-full border border-[#D9E5F8] bg-[#EDF4FF] px-2 py-0.5 text-[10px] font-semibold text-[#2866D7] sm:inline-flex">
-              {authenticated ? '账号已同步' : '会话隔离'}
+              {templateCopy ? '模板副本' : authenticated ? '账号已同步' : '会话隔离'}
             </span>
           </div>
           <p className="truncate text-[11px] leading-4 text-[var(--text-tertiary)]">
-            证据来源、问答和生成结果会保存在当前文献本。
+            {templateCopy ? '已创建独立副本，可以安全整理、重命名和补充来源。' : '证据来源、问答和生成结果会保存在当前文献本。'}
           </p>
         </div>
       </div>
