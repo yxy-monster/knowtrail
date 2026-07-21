@@ -357,6 +357,10 @@ async function main() {
     await page.getByRole('button', { name: '创建', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles([uploadPath, contrastUploadPath, dataUploadPath]);
     await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 3 个(文献)?来源|已选 3 篇/ }), 'Uploaded sources were not selected.');
+    await page.getByRole('button', { name: '取消选择Studio Evidence Source' }).click();
+    await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 2 个(文献)?来源|已选 2 篇/ }), 'Source selection control did not clear one source.');
+    await page.getByRole('button', { name: '选择Studio Evidence Source' }).click();
+    await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 3 个(文献)?来源|已选 3 篇/ }), 'Source selection control did not restore the source.');
 
     await page.getByTestId('chat-generate-report').click();
     await expectVisible(page.getByTestId('citation-audit-badge').filter({ hasText: '来源已校验' }), 'Report citation audit badge did not render.');
@@ -385,15 +389,13 @@ async function main() {
     assert(await page.getByTestId('library-paper-studio-evidence-source').getByTestId('library-citation-focus').count() === 0, 'Stale citation focus must not remain on the previous source.');
     await page.getByLabel('关闭证据定位').click();
     assert(await page.getByTestId('library-citation-focus').count() === 0, 'Explicit close must clear citation focus.');
-    await page.getByTestId('library-paper-studio-evidence-source').click({ button: 'right' });
-    await page.getByTestId('library-open-source-detail').click();
+    await page.getByTestId('library-paper-studio-evidence-source').click();
     await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
     await expectVisible(page.getByTestId('library-source-citation-leads').filter({ hasText: /引用线索[\s\S]*基于已入库片段/ }), 'Library source citation leads did not render.');
     await expectVisible(page.getByTestId('library-source-citation-lead').filter({ hasText: /线索 1[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source citation lead did not render source evidence.');
     await expectVisible(page.getByTestId('library-source-detail-chunk').filter({ hasText: /第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source detail chunk did not render source text.');
     await page.getByLabel('关闭来源片段').click();
-    await page.getByTestId('library-paper-studio-data-source').click({ button: 'right' });
-    await page.getByTestId('library-open-source-detail').click();
+    await page.getByTestId('library-paper-studio-data-source').click();
     await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Data Source/ }), 'CSV source detail panel did not render.');
     await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /数据速览[\s\S]*4 行[\s\S]*4 列/ }), 'CSV data table preview did not render row and column counts.');
     await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /score[\s\S]*数值列[\s\S]*均值 17\.3/ }), 'CSV data table preview did not render numeric score summary.');
@@ -417,6 +419,7 @@ async function main() {
       managedApp: smokeApp.managed,
       checked: [
         'uploaded sources become selected',
+        'source selection control changes evidence selection without opening the reader',
         'central report renders citation audit badge',
         'central report renders retrieval badge',
         'central report citation source can expand',
@@ -426,6 +429,7 @@ async function main() {
         'switching citations replaces source, locator, and highlighted context atomically',
         'a delayed stale source response cannot overwrite the current citation',
         'explicit close clears citation focus',
+        'clicking a source card opens the source reader directly',
         'library source detail panel lists stored source chunks',
         'library source detail panel renders source-backed citation leads',
         'library CSV source detail renders data preview, missing values, numeric summaries, and Results draft hint',

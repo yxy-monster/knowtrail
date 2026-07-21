@@ -1096,6 +1096,9 @@ export function LibraryPanel({
                     <div
                       key={paper.id}
                       data-testid={`library-paper-${paper.id}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`打开来源${paper.title}`}
                       aria-selected={selectedPapers.includes(paper.id)}
                       className={`library-source-card flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group animate-fade-in-up ${
                         selectedPapers.includes(paper.id)
@@ -1103,17 +1106,31 @@ export function LibraryPanel({
                           : ''
                       } ${flashPaperId === paper.id ? 'ring-2 ring-blue-400/80 bg-blue-500/10' : ''}`}
                       style={{ animationDelay: `${idx * 40}ms` }}
-                      onClick={() => togglePaperSelection(paper.id)}
+                      onClick={() => { void openSourcePreview(paper); }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        void openSourcePreview(paper);
+                      }}
                       onContextMenu={(e) => handleContextMenu(e, paper)}
                     >
                       {/* Checkbox */}
-                      <div className="mt-0.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        aria-label={selectedPapers.includes(paper.id) ? `取消选择${paper.title}` : `选择${paper.title}`}
+                        title={selectedPapers.includes(paper.id) ? '取消选择来源' : '选择来源'}
+                        className="mt-0.5 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          togglePaperSelection(paper.id);
+                        }}
+                      >
                         {selectedPapers.includes(paper.id) ? (
                           <CheckCircle2 className="h-4 w-4 text-blue-400" />
                         ) : (
                           <Circle className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors" />
                         )}
-                      </div>
+                      </button>
 
                       <FileTypeIcon fileType={paper.fileType} />
 
