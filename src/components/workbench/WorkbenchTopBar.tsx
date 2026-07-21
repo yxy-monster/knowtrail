@@ -32,7 +32,7 @@ export function WorkbenchTopBar({
           aria-label="返回文献本列表"
           title="返回文献本列表"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="pointer-events-none h-4 w-4" />
         </button>
         {!embedded && (
           <BrandMark compact className="hidden h-10 w-10 border-[var(--border-subtle)] shadow-none sm:block" />

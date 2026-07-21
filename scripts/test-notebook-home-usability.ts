@@ -9,11 +9,13 @@ function read(relativePath: string) {
 const home = read('src/components/home/NotebookHome.tsx');
 const cards = read('src/components/home/NotebookCards.tsx');
 
-for (const deadControl of ['网格视图', '卡片视图', '列表视图', '>最新<', '>全部<', '>我的文献本<']) {
-  assert.ok(!home.includes(deadControl), `Notebook home must not expose non-functional control: ${deadControl}`);
-}
-
-assert.doesNotMatch(home, /\bCheck\b|\bChevronDown\b|\bGrid3X3\b|\bList\b/, 'Dead view-control icons must be removed');
+assert.match(home, /projectNotebookHome/, 'Notebook filters, sorting and view controls must drive the rendered projection');
+assert.match(home, /notebook-home-filter-\$\{value\}/, 'Notebook range buttons need stable test targets');
+assert.match(home, /\['mine', '我的文献本'\]/, 'Personal notebooks need a real filter');
+assert.match(home, /\['featured', '精选模板'\]/, 'Featured notebooks need a real filter');
+assert.match(home, /notebook-home-sort/, 'Notebook sorting needs a real select control');
+assert.match(home, /notebook-home-view-grid/, 'Notebook grid view needs a real control');
+assert.match(home, /notebook-home-view-list/, 'Notebook list view needs a real control');
 assert.match(home, /data-testid="notebook-home-search"/, 'Notebook search must remain a real control');
 assert.match(home, /没有匹配的文献本/, 'Search needs an explicit empty result state');
 assert.match(home, /清除搜索/, 'Search empty state needs a recovery action');
@@ -27,6 +29,7 @@ assert.match(cards, /重命名/, 'Notebook cards must expose rename');
 assert.match(cards, /归档/, 'Notebook cards must expose archive');
 assert.match(cards, /ArrowUpRight/, 'Open action must remain visible without relying on hover');
 assert.match(cards, /focus-visible:ring-/, 'Cards need visible keyboard focus');
+assert.match(cards, /pointer-events-none[\s\S]*item\.title/, 'Featured card content must not intercept the full-card click target');
 
 assert.match(home, /已归档/, 'Archived notebooks need a visible recovery section');
 assert.match(home, /恢复/, 'Archived notebooks need a restore action');

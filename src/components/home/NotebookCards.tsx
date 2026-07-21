@@ -28,19 +28,19 @@ export function FeaturedNotebookStrip({
             type="button"
             onClick={() => onOpen(item.id)}
             disabled={disabled}
-            className="home-motion-card group flex min-h-[140px] flex-col overflow-hidden rounded-xl border border-white/20 p-4 text-left text-white shadow-[0_10px_28px_rgba(15,23,42,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="home-motion-card group flex min-h-[140px] cursor-pointer flex-col overflow-hidden rounded-xl border border-white/20 p-4 text-left text-white shadow-[0_10px_28px_rgba(15,23,42,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ background: item.image }}
             data-testid={`notebook-home-featured-${item.id}`}
             aria-label={`打开精选文献本 ${item.title}`}
           >
-            <div className="flex items-center justify-between gap-2 text-xs font-semibold text-white/90 sm:text-sm">
+            <div className="pointer-events-none flex items-center justify-between gap-2 text-xs font-semibold text-white/90 sm:text-sm">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/92 text-slate-950">
                 <BookOpen className="h-4 w-4" />
               </span>
               <ArrowUpRight className="h-4 w-4 opacity-70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
             </div>
-            <h3 className="mt-4 text-base font-semibold leading-snug sm:text-lg">{item.title}</h3>
-            <p className="mt-auto pt-2 text-xs font-medium text-white/75">{item.author} · {item.meta}</p>
+            <h3 className="pointer-events-none mt-4 text-base font-semibold leading-snug sm:text-lg">{item.title}</h3>
+            <p className="pointer-events-none mt-auto pt-2 text-xs font-medium text-white/75">{item.author} · {item.meta}</p>
           </button>
         ))}
       </div>
@@ -73,6 +73,7 @@ export function NotebookCard({
   onRename,
   onArchive,
   canArchive,
+  view = 'grid',
 }: {
   notebook: WorkspaceNotebook;
   active: boolean;
@@ -81,12 +82,13 @@ export function NotebookCard({
   onRename: () => void;
   onArchive: () => void;
   canArchive: boolean;
+  view?: 'grid' | 'list';
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <article
-      className={`home-motion-card group relative min-h-[184px] rounded-xl border transition hover:-translate-y-0.5 ${
+      className={`home-motion-card group relative rounded-xl border transition hover:-translate-y-0.5 ${view === 'list' ? 'min-h-[76px]' : 'min-h-[184px]'} ${
         active
           ? 'border-blue-300 bg-blue-50 shadow-[0_10px_26px_rgba(37,99,235,0.10)]'
           : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-[0_10px_26px_rgba(15,23,42,0.07)]'
@@ -97,21 +99,21 @@ export function NotebookCard({
         type="button"
         onClick={onOpen}
         disabled={disabled}
-        className="flex min-h-[182px] w-full flex-col justify-between rounded-xl p-5 pr-14 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className={`flex w-full rounded-xl pr-14 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${view === 'list' ? 'min-h-[74px] flex-row items-center gap-4 p-3.5' : 'min-h-[182px] flex-col justify-between p-5'}`}
         aria-label={`打开文献本 ${notebook.title}`}
       >
         <span className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br ${notebook.accent}`}>
           <FileText className="h-5 w-5 text-slate-700" />
         </span>
 
-        <span>
-          <span className="line-clamp-2 block text-lg font-semibold leading-snug tracking-tight text-slate-950">{notebook.title}</span>
-          <span className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
+        <span className={view === 'list' ? 'min-w-0 flex-1' : undefined}>
+          <span className={`line-clamp-2 block font-semibold leading-snug tracking-tight text-slate-950 ${view === 'list' ? 'text-base' : 'text-lg'}`}>{notebook.title}</span>
+          <span className={`flex items-center gap-1.5 text-xs text-slate-500 ${view === 'list' ? 'mt-1.5' : 'mt-3'}`}>
             <Clock3 className="h-3.5 w-3.5" />
             {formatNotebookDate(notebook.updatedAt)} · {notebook.sourceCount} 个来源
           </span>
           <span
-            className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700"
+            className={`${view === 'list' ? 'mt-1.5' : 'mt-4'} inline-flex items-center gap-1 text-xs font-semibold text-blue-700`}
             data-testid={`notebook-home-open-${notebook.id}`}
           >
             打开文献本 <ArrowUpRight className="h-3.5 w-3.5" />

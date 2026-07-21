@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Archive,
+  LayoutGrid,
+  List,
   LogOut,
   Plus,
   RotateCcw,
@@ -24,6 +26,12 @@ import {
   FeaturedNotebookStrip,
   NotebookCard,
 } from '@/components/home/NotebookCards';
+import {
+  projectNotebookHome,
+  type NotebookHomeFilter,
+  type NotebookHomeSort,
+  type NotebookHomeView,
+} from '@/lib/notebook-home-controls';
 
 type NotebookHomeProps = {
   embedded: boolean;
@@ -109,10 +117,14 @@ export function NotebookHome({
   const [editingTitle, setEditingTitle] = useState('');
   const [archiveTarget, setArchiveTarget] = useState<WorkspaceNotebook | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [filter, setFilter] = useState<NotebookHomeFilter>('all');
+  const [sort, setSort] = useState<NotebookHomeSort>('latest');
+  const [view, setView] = useState<NotebookHomeView>('grid');
   const normalizedQuery = query.trim().toLowerCase();
   const activeNotebooks = visibleNotebooks(notebooks);
   const archivedItems = archivedNotebooks(notebooks);
-  const filteredNotebooks = activeNotebooks.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
+  const projection = projectNotebookHome({ notebooks: activeNotebooks, query, filter, sort, view });
+  const filteredNotebooks = projection.notebooks;
   const filteredArchivedItems = archivedItems.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
   const hasSearchMatches = filteredNotebooks.length > 0 || filteredArchivedItems.length > 0;
 
@@ -191,17 +203,62 @@ export function NotebookHome({
           </label>
         </div>
 
-        <FeaturedNotebookStrip disabled={!notebooksReady} onOpen={onOpenFeatured} />
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 pt-5 sm:px-5 md:flex-row md:items-center md:justify-between">
+          <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1" role="radiogroup" aria-label="文献本范围">
+            {([
+              ['all', '全部'],
+              ['mine', '我的文献本'],
+              ['featured', '精选模板'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={filter === value}
+                onClick={() => setFilter(value)}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${filter === value ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}
+                data-testid={`notebook-home-filter-${value}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-5 sm:py-8">
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="notebook-home-sort">文献本排序</label>
+            <select
+              id="notebook-home-sort"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as NotebookHomeSort)}
+              className="h-10 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              data-testid="notebook-home-sort"
+            >
+              <option value="latest">最近更新</option>
+              <option value="oldest">最早更新</option>
+              <option value="title">按名称</option>
+            </select>
+            <div className="inline-flex rounded-full border border-slate-200 bg-white p-1" role="radiogroup" aria-label="文献本视图">
+              <button type="button" role="radio" aria-checked={view === 'grid'} onClick={() => setView('grid')} className={`flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'grid' ? 'bg-slate-100 text-slate-950' : 'text-slate-500 hover:text-slate-950'}`} aria-label="网格视图" data-testid="notebook-home-view-grid">
+                <LayoutGrid className="pointer-events-none h-4 w-4" />
+              </button>
+              <button type="button" role="radio" aria-checked={view === 'list'} onClick={() => setView('list')} className={`flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'list' ? 'bg-slate-100 text-slate-950' : 'text-slate-500 hover:text-slate-950'}`} aria-label="列表视图" data-testid="notebook-home-view-list">
+                <List className="pointer-events-none h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {projection.showFeatured && <FeaturedNotebookStrip disabled={!notebooksReady} onOpen={onOpenFeatured} />}
+
+        {projection.showPersonal && <section className="mx-auto max-w-7xl px-4 py-6 sm:px-5 sm:py-8">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">最近打开</h1>
             <span className="text-sm tabular-nums text-slate-500">{filteredNotebooks.length} 个文献本</span>
           </div>
 
           {filteredNotebooks.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              <CreateNotebookCard disabled={!notebooksReady} onCreate={onCreate} />
+            <div className={view === 'list' ? 'space-y-2' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}>
+              {view !== 'list' && <CreateNotebookCard disabled={!notebooksReady} onCreate={onCreate} />}
               {filteredNotebooks.map(notebook => (
                 <NotebookCard
                   key={notebook.id}
@@ -214,6 +271,7 @@ export function NotebookHome({
                   onRename={() => beginRename(notebook)}
                   onArchive={() => setArchiveTarget(notebook)}
                   canArchive={activeNotebooks.length > 1}
+                  view={view === 'list' ? 'list' : 'grid'}
                 />
               ))}
             </div>
@@ -230,7 +288,7 @@ export function NotebookHome({
               </button>
             </div>
           ) : null}
-        </section>
+        </section>}
 
         {archivedItems.length > 0 && (
           <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-5" data-testid="notebook-home-archived">
