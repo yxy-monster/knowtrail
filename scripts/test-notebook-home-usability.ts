@@ -8,6 +8,7 @@ function read(relativePath: string) {
 
 const home = read('src/components/home/NotebookHome.tsx');
 const cards = read('src/components/home/NotebookCards.tsx');
+const page = read('src/app/page.tsx');
 
 assert.match(home, /projectNotebookHome/, 'Notebook filters, sorting and view controls must drive the rendered projection');
 assert.match(home, /notebook-home-filter-\$\{value\}/, 'Notebook range buttons need stable test targets');
@@ -34,5 +35,10 @@ assert.match(cards, /pointer-events-none[\s\S]*item\.title/, 'Featured card cont
 assert.match(home, /已归档/, 'Archived notebooks need a visible recovery section');
 assert.match(home, /恢复/, 'Archived notebooks need a restore action');
 assert.match(home, /重命名文献本/, 'Rename needs a clear dialog instead of a prompt');
+assert.match(
+  page,
+  /if \(!routeReady \|\| !notebooksReady\)/,
+  'Workbench refresh must not render a fallback notebook before the saved notebook is restored',
+);
 
 console.log('notebook home usability contract passed');

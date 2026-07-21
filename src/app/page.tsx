@@ -427,14 +427,16 @@ export default function HomePage() {
     [featuredFolders],
   );
 
-  if (!routeReady) {
+  if (!routeReady || !notebooksReady) {
     return (
       <div
-        className="min-h-screen bg-[#F7F9FC]"
+        className="flex min-h-screen items-center justify-center bg-[#F7F9FC] text-sm text-slate-500"
         data-testid="embedded-entry-boot-shell"
         aria-busy="true"
-        aria-label="正在准备科研工作区"
-      />
+        aria-label="正在恢复文献本"
+      >
+        正在恢复文献本…
+      </div>
     );
   }
 
