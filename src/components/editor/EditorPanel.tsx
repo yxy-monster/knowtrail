@@ -659,7 +659,21 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
       <div ref={scrollAreaCallbackRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-6 max-w-2xl mx-auto">
           {messages.length === 0 ? (
-            <div className={compact ? 'py-10 text-center' : 'py-16 text-center'}>
+            <div
+              className={`relative isolate overflow-hidden border border-sky-100/80 bg-[var(--bg-primary)] px-5 text-center shadow-[0_24px_64px_rgba(66,111,150,0.09)] ${
+                compact ? 'rounded-[26px] py-10' : 'rounded-[30px] py-16'
+              }`}
+              data-testid="chat-empty-hero"
+            >
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-center"
+                style={{ backgroundImage: "url('/assets/research/question-ambient-v1.webp')" }}
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-white/15 via-white/60 to-white/95"
+              />
               <div className={`${compact ? 'h-12 w-12 rounded-xl' : 'h-16 w-16 rounded-2xl'} liquid-glass-inset mx-auto mb-5 flex items-center justify-center`}>
                 <MessageSquare className="h-7 w-7 text-[var(--text-tertiary)]" />
               </div>
