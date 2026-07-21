@@ -18,6 +18,9 @@ assert.match(home, /notebook-home-sort/, 'Notebook sorting needs a real select c
 assert.match(home, /notebook-home-view-grid/, 'Notebook grid view needs a real control');
 assert.match(home, /notebook-home-view-list/, 'Notebook list view needs a real control');
 assert.match(home, /data-testid="notebook-home-search"/, 'Notebook search must remain a real control');
+assert.match(home, /preferencesStorageKey/, 'Notebook home controls must restore within the current guest or account scope');
+assert.match(home, /decodeNotebookHomePreferences/, 'Notebook home controls must validate restored preferences');
+assert.match(home, /encodeNotebookHomePreferences/, 'Notebook home controls must persist the visible selection');
 assert.match(home, /没有匹配的文献本/, 'Search needs an explicit empty result state');
 assert.match(home, /清除搜索/, 'Search empty state needs a recovery action');
 assert.match(home, /focus-visible:ring-/, 'Home commands need visible keyboard focus');
@@ -40,6 +43,11 @@ assert.match(
   page,
   /notebooksStorageOwner !== notebookStorageOwner/,
   'Workbench refresh must not render notebooks from a previous host scope while the current scope is restored',
+);
+assert.match(
+  page,
+  /preferencesStorageKey=\{notebookStorageKey\('knowtrail-notebook-home-preferences'\)\}/,
+  'Notebook home preferences must be isolated with the same guest or account owner as notebook data',
 );
 
 console.log('notebook home usability contract passed');

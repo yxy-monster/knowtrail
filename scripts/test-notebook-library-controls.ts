@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {
+  decodeNotebookHomePreferences,
+  encodeNotebookHomePreferences,
   projectNotebookHome,
   type NotebookHomeFilter,
   type NotebookHomeSort,
@@ -30,6 +32,30 @@ assert.equal(project('mine', 'latest', 'grid').showPersonal, true);
 assert.equal(projectNotebookHome({ notebooks, query: 'new', filter: 'all', sort: 'title', view: 'list' }).notebooks[0].id, 'newer');
 assert.deepEqual(filterFeaturedNotebooks('科研').map(item => item.id), ['featured-research-reading']);
 assert.deepEqual(filterFeaturedNotebooks('不存在的模板'), []);
+assert.deepEqual(decodeNotebookHomePreferences(JSON.stringify({
+  query: '科研',
+  filter: 'mine',
+  sort: 'title',
+  view: 'list',
+})), {
+  query: '科研',
+  filter: 'mine',
+  sort: 'title',
+  view: 'list',
+});
+assert.equal(decodeNotebookHomePreferences('{broken'), null);
+assert.equal(decodeNotebookHomePreferences(JSON.stringify({
+  query: 7,
+  filter: 'other',
+  sort: 'latest',
+  view: 'grid',
+})), null);
+assert.equal(encodeNotebookHomePreferences({
+  query: 'AI',
+  filter: 'featured',
+  sort: 'oldest',
+  view: 'grid',
+}), '{"query":"AI","filter":"featured","sort":"oldest","view":"grid"}');
 
 const folders = [{ id: 'folder-a' }, { id: 'folder-b' }];
 assert.equal(resolveLibraryUploadTarget('folder-b', folders), 'folder-b');

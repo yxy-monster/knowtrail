@@ -4,6 +4,33 @@ export type NotebookHomeFilter = 'all' | 'mine' | 'featured';
 export type NotebookHomeSort = 'latest' | 'oldest' | 'title';
 export type NotebookHomeView = 'comfortable' | 'grid' | 'list';
 
+export type NotebookHomePreferences = {
+  query: string;
+  filter: NotebookHomeFilter;
+  sort: NotebookHomeSort;
+  view: NotebookHomeView;
+};
+
+export function decodeNotebookHomePreferences(value: string | null): NotebookHomePreferences | null {
+  if (!value) return null;
+  try {
+    const candidate = JSON.parse(value) as Partial<NotebookHomePreferences>;
+    if (
+      typeof candidate.query !== 'string'
+      || !['all', 'mine', 'featured'].includes(candidate.filter ?? '')
+      || !['latest', 'oldest', 'title'].includes(candidate.sort ?? '')
+      || !['grid', 'list'].includes(candidate.view ?? '')
+    ) return null;
+    return candidate as NotebookHomePreferences;
+  } catch {
+    return null;
+  }
+}
+
+export function encodeNotebookHomePreferences(preferences: NotebookHomePreferences) {
+  return JSON.stringify(preferences);
+}
+
 export function projectNotebookHome({
   notebooks,
   query,

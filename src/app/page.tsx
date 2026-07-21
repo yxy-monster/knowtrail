@@ -484,6 +484,7 @@ export default function HomePage() {
             accountStatus={accountStatus}
             accountSession={accountSession}
             notebooksReady={notebooksReady}
+            preferencesStorageKey={notebookStorageKey('knowtrail-notebook-home-preferences')}
             onCreate={createNotebook}
             onOpen={openNotebook}
             onOpenFeatured={openFeaturedNotebook}

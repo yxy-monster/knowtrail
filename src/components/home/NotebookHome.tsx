@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Archive,
@@ -27,6 +27,8 @@ import {
   NotebookCard,
 } from '@/components/home/NotebookCards';
 import {
+  decodeNotebookHomePreferences,
+  encodeNotebookHomePreferences,
   projectNotebookHome,
   type NotebookHomeFilter,
   type NotebookHomeSort,
@@ -41,6 +43,7 @@ type NotebookHomeProps = {
   accountStatus: AccountCenterStatus | null;
   accountSession: AccountAuthSession | null;
   notebooksReady: boolean;
+  preferencesStorageKey: string;
   onCreate: () => void;
   onOpen: (id: string) => void;
   onOpenFeatured: (id: string) => void;
@@ -104,6 +107,7 @@ export function NotebookHome({
   accountStatus,
   accountSession,
   notebooksReady,
+  preferencesStorageKey,
   onCreate,
   onOpen,
   onOpenFeatured,
@@ -121,6 +125,7 @@ export function NotebookHome({
   const [filter, setFilter] = useState<NotebookHomeFilter>('all');
   const [sort, setSort] = useState<NotebookHomeSort>('latest');
   const [view, setView] = useState<NotebookHomeView>('grid');
+  const [restoredPreferencesKey, setRestoredPreferencesKey] = useState<string | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
   const activeNotebooks = visibleNotebooks(notebooks);
   const archivedItems = archivedNotebooks(notebooks);
@@ -129,6 +134,36 @@ export function NotebookHome({
   const filteredFeaturedNotebooks = filterFeaturedNotebooks(query);
   const filteredArchivedItems = archivedItems.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
   const hasSearchMatches = filteredFeaturedNotebooks.length > 0 || filteredNotebooks.length > 0 || filteredArchivedItems.length > 0;
+
+  useEffect(() => {
+    let restored = null;
+    try {
+      restored = decodeNotebookHomePreferences(window.localStorage.getItem(preferencesStorageKey));
+    } catch {
+      // Storage can be unavailable in privacy-restricted embeds; defaults remain usable.
+    }
+    if (restored) {
+      setQuery(restored.query);
+      setFilter(restored.filter);
+      setSort(restored.sort);
+      setView(restored.view);
+    } else {
+      setQuery('');
+      setFilter('all');
+      setSort('latest');
+      setView('grid');
+    }
+    setRestoredPreferencesKey(preferencesStorageKey);
+  }, [preferencesStorageKey]);
+
+  useEffect(() => {
+    if (restoredPreferencesKey !== preferencesStorageKey) return;
+    try {
+      window.localStorage.setItem(preferencesStorageKey, encodeNotebookHomePreferences({ query, filter, sort, view }));
+    } catch {
+      // Keep the controls usable even when the browser refuses persistent storage.
+    }
+  }, [filter, preferencesStorageKey, query, restoredPreferencesKey, sort, view]);
 
   const beginRename = (notebook: WorkspaceNotebook) => {
     setEditingNotebook(notebook);
