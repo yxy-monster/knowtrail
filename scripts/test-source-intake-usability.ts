@@ -24,5 +24,11 @@ for (const testId of [
 assert.match(library, /网页抓取失败/, 'URL intake needs recoverable Chinese failure feedback');
 assert.match(library, /网址格式不正确/, 'URL intake needs recoverable format feedback');
 assert.match(guide, /正在读取网页/, 'URL intake needs an immediate loading state');
+assert.match(
+  library,
+  /data-testid="library-source-detail-panel"[\s\S]{0,240}className="flex h-full w-full flex-col overflow-hidden/,
+  'Source reading must replace the library panel in place instead of opening a floating modal',
+);
+assert.match(library, /来源阅读/, 'The in-place source reader needs a clear panel title');
 
 console.log('source intake usability contract passed');

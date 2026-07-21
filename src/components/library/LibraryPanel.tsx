@@ -1519,23 +1519,16 @@ export function LibraryPanel({
 
       {/* Source chunks detail */}
       {sourcePreview && (
-        <div
-          className="absolute inset-0 z-[80] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
-          onClick={() => {
-            setSourcePreview(null);
-            setSourcePreviewFocus(null);
-          }}
-        >
+        <div className="absolute inset-0 z-[80] flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] animate-fade-in">
           <div
             data-testid="library-source-detail-panel"
-            className="liquid-glass-card flex max-h-[82vh] w-full max-w-[420px] flex-col p-0 animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
+            className="flex h-full w-full flex-col overflow-hidden bg-[var(--bg-primary)]"
           >
             <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                   <FileText className="h-4 w-4 text-blue-400" />
-                  <span>来源片段</span>
+                  <span>来源阅读</span>
                 </div>
                 <p className="mt-1 truncate text-xs text-[var(--text-secondary)]">{sourcePreview.paper.title}</p>
               </div>
