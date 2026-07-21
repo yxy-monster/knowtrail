@@ -290,6 +290,7 @@ export function NotebookHome({
             disabled={!notebooksReady}
             items={filteredFeaturedNotebooks}
             onOpen={onOpenFeatured}
+            view={view === 'list' ? 'list' : 'grid'}
           />
         )}
 

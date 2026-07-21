@@ -15,10 +15,12 @@ export function FeaturedNotebookStrip({
   disabled,
   items = FEATURED_NOTEBOOKS,
   onOpen,
+  view,
 }: {
   disabled: boolean;
   items?: FeaturedNotebook[];
   onOpen: (id: string) => void;
+  view: 'grid' | 'list';
 }) {
   return (
     <section className="mx-auto max-w-7xl px-4 pb-6 pt-7 sm:px-5 sm:pb-8" data-testid="notebook-home-featured-strip">
@@ -26,29 +28,29 @@ export function FeaturedNotebookStrip({
         <h2 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">精选模板</h2>
         <span className="text-sm text-slate-500">{items.length} 个研究场景</span>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+      <div className={view === 'list' ? 'space-y-2' : 'grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4'}>
         {items.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => onOpen(item.id)}
             disabled={disabled}
-            className="home-motion-card group flex min-h-[140px] cursor-pointer flex-col overflow-hidden rounded-xl border border-white/20 p-4 text-left text-white shadow-[0_10px_28px_rgba(15,23,42,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+            className={`home-motion-card group relative cursor-pointer overflow-hidden rounded-xl border border-white/20 p-4 text-left text-white shadow-[0_10px_28px_rgba(15,23,42,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 ${view === 'list' ? 'grid min-h-[88px] w-full grid-cols-[auto_1fr_auto] items-center gap-4' : 'flex min-h-[140px] flex-col'}`}
             style={{ background: item.image }}
             data-testid={`notebook-home-featured-${item.id}`}
             aria-label={`使用精选模板创建个人副本 ${item.title}`}
           >
-            <div className="pointer-events-none flex items-center justify-between gap-2 text-xs font-semibold text-white/90 sm:text-sm">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/92 text-slate-950">
-                <BookOpen className="h-4 w-4" />
-              </span>
-              <ArrowUpRight className="h-4 w-4 opacity-70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
+            <span className="pointer-events-none flex h-8 w-8 items-center justify-center rounded-lg bg-white/92 text-slate-950">
+              <BookOpen className="h-4 w-4" />
+            </span>
+            <div className={`pointer-events-none min-w-0 ${view === 'list' ? '' : 'mt-4'}`}>
+              <h3 className="text-base font-semibold leading-snug sm:text-lg">{item.title}</h3>
+              <div className={`flex gap-2 text-xs font-medium text-white/75 ${view === 'list' ? 'mt-1.5 items-center' : 'mt-2 items-end justify-between'}`}>
+                <span>{item.author} · {item.meta}</span>
+                <span className="whitespace-nowrap rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold text-white/90">创建个人副本</span>
+              </div>
             </div>
-            <h3 className="pointer-events-none mt-4 text-base font-semibold leading-snug sm:text-lg">{item.title}</h3>
-            <div className="pointer-events-none mt-auto flex items-end justify-between gap-2 pt-2 text-xs font-medium text-white/75">
-              <span>{item.author} · {item.meta}</span>
-              <span className="whitespace-nowrap rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold text-white/90">创建个人副本</span>
-            </div>
+            <ArrowUpRight className={`pointer-events-none h-4 w-4 opacity-70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 ${view === 'list' ? '' : 'absolute right-4 top-4'}`} />
           </button>
         ))}
       </div>

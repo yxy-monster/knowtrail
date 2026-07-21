@@ -26,6 +26,8 @@ assert.match(home, /清除搜索/, 'Search empty state needs a recovery action')
 assert.match(home, /focus-visible:ring-/, 'Home commands need visible keyboard focus');
 
 assert.match(cards, /grid-cols-2[\s\S]*sm:grid-cols-4/, 'Featured notebooks must fit one row on normal desktop widths');
+assert.match(cards, /view === 'list' \? 'space-y-2'/, 'Featured notebooks must visibly respond to list view');
+assert.match(home, /<FeaturedNotebookStrip[\s\S]*view=\{view === 'list' \? 'list' : 'grid'\}/, 'Featured view must follow the selected home view');
 assert.match(cards, /min-h-\[140px\]/, 'Featured cards must use a compact stable height');
 assert.match(cards, /min-h-\[184px\]/, 'Notebook cards must avoid the previous oversized layout');
 assert.match(cards, /data-testid={`notebook-home-actions-\$\{notebook\.id\}`}/, 'Notebook cards need a real lifecycle menu');
