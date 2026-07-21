@@ -120,6 +120,7 @@ export default function HomePage() {
   const [showLanding, setShowLanding] = useState(true);
   const [notebooks, setNotebooks] = useState<WorkspaceNotebook[]>([]);
   const [notebooksReady, setNotebooksReady] = useState(false);
+  const [notebooksStorageOwner, setNotebooksStorageOwner] = useState<string | null>(null);
   const [activeNotebookId, setActiveNotebookId] = useState<string | null>(null);
   const [showSourceGuide, setShowSourceGuide] = useState(false);
   const [accountStatus, setAccountStatus] = useState<AccountCenterStatus | null>(null);
@@ -201,24 +202,31 @@ export default function HomePage() {
       setNotebooks(nextNotebooks);
       const availableNotebooks = visibleNotebooks(nextNotebooks);
       setActiveNotebookId(savedActive && availableNotebooks.some(item => item.id === savedActive) ? savedActive : availableNotebooks[0]?.id || null);
+      setNotebooksStorageOwner(notebookStorageOwner);
       setNotebooksReady(true);
     } catch {
       const defaults = createDefaultNotebooks();
       setNotebooks(defaults);
       setActiveNotebookId(defaults[0]?.id || null);
+      setNotebooksStorageOwner(notebookStorageOwner);
       setNotebooksReady(true);
     }
-  }, [accountSessionReady, notebookStorageKey]);
+  }, [accountSessionReady, notebookStorageKey, notebookStorageOwner]);
 
   useEffect(() => {
-    if (!accountSessionReady || notebooks.length === 0) return;
+    if (
+      !accountSessionReady
+      || !notebooksReady
+      || notebooksStorageOwner !== notebookStorageOwner
+      || notebooks.length === 0
+    ) return;
     try {
       window.localStorage.setItem(notebookStorageKey(NOTEBOOKS_STORAGE_KEY), JSON.stringify(notebooks));
       if (activeNotebookId) window.localStorage.setItem(notebookStorageKey(ACTIVE_NOTEBOOK_STORAGE_KEY), activeNotebookId);
     } catch {
       // Keep the interface usable in restricted browser storage modes.
     }
-  }, [accountSessionReady, activeNotebookId, notebookStorageKey, notebooks]);
+  }, [accountSessionReady, activeNotebookId, notebookStorageKey, notebookStorageOwner, notebooks, notebooksReady, notebooksStorageOwner]);
 
   useEffect(() => {
     let cancelled = false;
@@ -427,7 +435,7 @@ export default function HomePage() {
     [featuredFolders],
   );
 
-  if (!routeReady || !notebooksReady) {
+  if (!routeReady || !notebooksReady || notebooksStorageOwner !== notebookStorageOwner) {
     return (
       <div
         className="flex min-h-screen items-center justify-center bg-[#F7F9FC] text-sm text-slate-500"

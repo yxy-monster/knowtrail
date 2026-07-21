@@ -37,8 +37,8 @@ assert.match(home, /恢复/, 'Archived notebooks need a restore action');
 assert.match(home, /重命名文献本/, 'Rename needs a clear dialog instead of a prompt');
 assert.match(
   page,
-  /if \(!routeReady \|\| !notebooksReady\)/,
-  'Workbench refresh must not render a fallback notebook before the saved notebook is restored',
+  /notebooksStorageOwner !== notebookStorageOwner/,
+  'Workbench refresh must not render notebooks from a previous host scope while the current scope is restored',
 );
 
 console.log('notebook home usability contract passed');
