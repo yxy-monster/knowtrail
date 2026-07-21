@@ -147,6 +147,27 @@ try {
   const after = (await left.boundingBox()).width;
   assert(after > before, 'Keyboard resize did not increase the left panel width.');
 
+  await embedded.getByTestId('workbench-toggle-left').click();
+  const leftRail = embedded.getByTestId('workbench-left-rail');
+  await leftRail.waitFor({ state: 'visible' });
+  const leftRailBox = await leftRail.boundingBox();
+  assert(leftRailBox && leftRailBox.width <= 64, `Collapsed source rail is too wide: ${leftRailBox?.width}.`);
+  assert(await left.count() === 0, 'Collapsed source panel still occupies the full column.');
+  await embedded.getByTestId('workbench-expand-left').click();
+  await left.waitFor({ state: 'visible' });
+
+  await embedded.getByTestId('workbench-toggle-right').click();
+  const rightRail = embedded.getByTestId('workbench-right-rail');
+  await rightRail.waitFor({ state: 'visible' });
+  const rightRailBox = await rightRail.boundingBox();
+  assert(rightRailBox && rightRailBox.width <= 64, `Collapsed studio rail is too wide: ${rightRailBox?.width}.`);
+  assert(await right.count() === 0, 'Collapsed studio panel still occupies the full column.');
+  await embedded.getByTestId('workbench-expand-right').click();
+  await right.waitFor({ state: 'visible' });
+
+  const collapseState = await embedded.evaluate(() => window.localStorage.getItem('knowtrail:workbench-panel-collapsed:quiet-research'));
+  assert(collapseState === '{"left":false,"right":false}', `Panel collapse state was not saved: ${collapseState}.`);
+
   await embedded.emulateMedia({ reducedMotion: 'reduce' });
   const duration = await center.evaluate((node) => getComputedStyle(node).transitionDuration);
   assert(duration === '0s', `Reduced-motion transition remained ${duration}.`);
@@ -173,6 +194,7 @@ try {
       'quiet three-column widths',
       'soft panel spacing and radius',
       'keyboard resize',
+      'persistent compact collapse rails',
       'reduced motion',
       'compact quick actions',
       'compact selectable tools',

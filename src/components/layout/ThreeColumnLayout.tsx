@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { LibraryBig, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sparkles } from 'lucide-react';
 
 interface ThreeColumnLayoutProps {
   leftPanel: React.ReactNode;
@@ -14,8 +14,18 @@ interface ThreeColumnLayoutProps {
 }
 
 const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
+const COLLAPSE_STORAGE_KEY = 'knowtrail:workbench-panel-collapsed';
 
 function readStoredWidths(storageKey: string): { left?: number; right?: number } {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function readStoredCollapse(storageKey: string): { left?: boolean; right?: boolean } {
   if (typeof window === 'undefined') return {};
   try {
     return JSON.parse(window.localStorage.getItem(storageKey) || '{}');
@@ -37,6 +47,9 @@ export function ThreeColumnLayout({
   const widthsStorageKey = appearance === 'quiet-research'
     ? `${WIDTHS_STORAGE_KEY}:quiet-research`
     : WIDTHS_STORAGE_KEY;
+  const collapseStorageKey = appearance === 'quiet-research'
+    ? `${COLLAPSE_STORAGE_KEY}:quiet-research`
+    : COLLAPSE_STORAGE_KEY;
   const [leftWidth, setLeftWidth] = useState(() => {
     const stored = readStoredWidths(widthsStorageKey).left;
     return stored && stored >= 220 && stored <= 450 ? stored : defaultLeftWidth;
@@ -48,8 +61,8 @@ export function ThreeColumnLayout({
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(() => readStoredCollapse(collapseStorageKey).left === true);
+  const [rightCollapsed, setRightCollapsed] = useState(() => readStoredCollapse(collapseStorageKey).right === true);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
@@ -117,6 +130,12 @@ export function ThreeColumnLayout({
     setMobilePanel(initialMobilePanel);
   }, [initialMobilePanel]);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(collapseStorageKey, JSON.stringify({ left: leftCollapsed, right: rightCollapsed }));
+    } catch { /* quota — persistence is best-effort */ }
+  }, [collapseStorageKey, leftCollapsed, rightCollapsed]);
+
   if (isMobile) {
     const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
       { id: 'left', label: '资料' },
@@ -162,6 +181,27 @@ export function ThreeColumnLayout({
       className={`relative h-full w-full flex ${appearance === 'quiet-research' ? 'quiet-workbench-shell' : ''}`}
       style={{ cursor: dragging ? 'col-resize' : undefined }}
     >
+      {leftCollapsed && (
+        <aside
+          className={`mr-3 flex h-full w-14 flex-shrink-0 flex-col items-center gap-3 overflow-hidden py-3 ${panelClass}`}
+          data-testid="workbench-left-rail"
+          aria-label="资料库已收起"
+        >
+          <button
+            type="button"
+            onClick={() => setLeftCollapsed(false)}
+            data-testid="workbench-expand-left"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            title="展开资料库"
+            aria-label="展开资料库"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+          <LibraryBig className="mt-1 h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.18em] text-[var(--text-tertiary)]">资料库</span>
+        </aside>
+      )}
+
       {/* Left Panel — liquid glass */}
       {!leftCollapsed && (
         <div
@@ -199,26 +239,30 @@ export function ThreeColumnLayout({
         {centerPanel}
 
         {/* Collapse / expand toggles */}
-        <button
-          type="button"
-          onClick={() => setLeftCollapsed(v => !v)}
-          data-testid="workbench-toggle-left"
-          className="absolute left-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
-          title={leftCollapsed ? '展开资料库' : '收起资料库'}
-          aria-label={leftCollapsed ? '展开资料库' : '收起资料库'}
-        >
-          {leftCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          type="button"
-          onClick={() => setRightCollapsed(v => !v)}
-          data-testid="workbench-toggle-right"
-          className="absolute right-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
-          title={rightCollapsed ? '展开产物中心' : '收起产物中心'}
-          aria-label={rightCollapsed ? '展开产物中心' : '收起产物中心'}
-        >
-          {rightCollapsed ? <PanelRightOpen className="h-3.5 w-3.5" /> : <PanelRightClose className="h-3.5 w-3.5" />}
-        </button>
+        {!leftCollapsed && (
+          <button
+            type="button"
+            onClick={() => setLeftCollapsed(true)}
+            data-testid="workbench-toggle-left"
+            className="absolute left-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
+            title="收起资料库"
+            aria-label="收起资料库"
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {!rightCollapsed && (
+          <button
+            type="button"
+            onClick={() => setRightCollapsed(true)}
+            data-testid="workbench-toggle-right"
+            className="absolute right-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
+            title="收起产物中心"
+            aria-label="收起产物中心"
+          >
+            <PanelRightClose className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Right Divider */}
@@ -251,6 +295,27 @@ export function ThreeColumnLayout({
         >
           {rightPanel}
         </div>
+      )}
+
+      {rightCollapsed && (
+        <aside
+          className={`ml-3 flex h-full w-14 flex-shrink-0 flex-col items-center gap-3 overflow-hidden py-3 ${panelClass}`}
+          data-testid="workbench-right-rail"
+          aria-label="产物中心已收起"
+        >
+          <button
+            type="button"
+            onClick={() => setRightCollapsed(false)}
+            data-testid="workbench-expand-right"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            title="展开产物中心"
+            aria-label="展开产物中心"
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </button>
+          <Sparkles className="mt-1 h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.18em] text-[var(--text-tertiary)]">产物中心</span>
+        </aside>
       )}
     </div>
   );
