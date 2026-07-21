@@ -119,10 +119,15 @@ try {
   const center = embedded.getByTestId('workbench-center-panel');
   const right = embedded.getByTestId('workbench-right-panel');
   const leftBox = await left.boundingBox();
+  const centerBox = await center.boundingBox();
   const rightBox = await right.boundingBox();
   assert(leftBox && Math.abs(leftBox.width - 272) <= 2, `Expected 272px left panel, got ${leftBox?.width}.`);
   assert(rightBox && Math.abs(rightBox.width - 420) <= 2, `Expected 420px right panel, got ${rightBox?.width}.`);
   assert(await center.isVisible(), 'Center panel is not visible.');
+  assert(centerBox && leftBox && centerBox.x - (leftBox.x + leftBox.width) >= 10, 'Quiet panels still touch with a hard divider.');
+  assert(rightBox && centerBox && rightBox.x - (centerBox.x + centerBox.width) >= 10, 'Quiet right panel still touches the center panel.');
+  const panelRadius = await center.evaluate((node) => getComputedStyle(node).borderRadius);
+  assert(Number.parseFloat(panelRadius) >= 16, `Quiet panel radius is too small: ${panelRadius}.`);
   assert(
     await embedded.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth),
     'Workbench has page-level horizontal overflow.',
@@ -166,6 +171,7 @@ try {
       'no embedded brand',
       'standalone brand retained',
       'quiet three-column widths',
+      'soft panel spacing and radius',
       'keyboard resize',
       'reduced motion',
       'compact quick actions',

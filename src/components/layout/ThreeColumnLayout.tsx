@@ -159,7 +159,7 @@ export function ThreeColumnLayout({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full flex"
+      className={`relative h-full w-full flex ${appearance === 'quiet-research' ? 'quiet-workbench-shell' : ''}`}
       style={{ cursor: dragging ? 'col-resize' : undefined }}
     >
       {/* Left Panel — liquid glass */}
