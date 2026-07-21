@@ -201,10 +201,16 @@ async function interceptAccountStatus(page) {
 
 async function interceptIngestionSources(page) {
   let hitCount = 0;
+  let failNextDetail = false;
   await page.route('**/api/ingestion/sources**', async route => {
     hitCount += 1;
     const url = new URL(route.request().url());
     const id = url.searchParams.get('id');
+    if (id && failNextDetail) {
+      failNextDetail = false;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'temporary source read failure' }) });
+      return;
+    }
     if (id === 'studio-evidence-source') {
       await new Promise(resolve => setTimeout(resolve, 350));
     }
@@ -301,7 +307,10 @@ async function interceptIngestionSources(page) {
             : { sources: [] }),
     });
   });
-  return () => hitCount;
+  return {
+    hits: () => hitCount,
+    failNextDetail: () => { failNextDetail = true; },
+  };
 }
 
 async function interceptReport(page) {
@@ -346,7 +355,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
     await interceptAccountStatus(page);
-    const ingestionHits = await interceptIngestionSources(page);
+    const ingestion = await interceptIngestionSources(page);
     const uploadHits = await interceptUpload(page);
     const reportHits = await interceptReport(page);
 
@@ -389,7 +398,10 @@ async function main() {
     assert(await page.getByTestId('library-paper-studio-evidence-source').getByTestId('library-citation-focus').count() === 0, 'Stale citation focus must not remain on the previous source.');
     await page.getByLabel('关闭证据定位').click();
     assert(await page.getByTestId('library-citation-focus').count() === 0, 'Explicit close must clear citation focus.');
+    ingestion.failNextDetail();
     await page.getByTestId('library-paper-studio-evidence-source').click();
+    await expectVisible(page.getByTestId('library-source-retry'), 'Transient source failure did not expose a retry action.');
+    await page.getByTestId('library-source-retry').click();
     await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
     await expectVisible(page.getByTestId('library-source-citation-leads').filter({ hasText: /引用线索[\s\S]*基于已入库片段/ }), 'Library source citation leads did not render.');
     await expectVisible(page.getByTestId('library-source-citation-lead').filter({ hasText: /线索 1[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source citation lead did not render source evidence.');
@@ -430,6 +442,7 @@ async function main() {
         'a delayed stale source response cannot overwrite the current citation',
         'explicit close clears citation focus',
         'clicking a source card opens the source reader directly',
+        'transient source read failure exposes a retry action and recovers in place',
         'library source detail panel lists stored source chunks',
         'library source detail panel renders source-backed citation leads',
         'library CSV source detail renders data preview, missing values, numeric summaries, and Results draft hint',
@@ -438,7 +451,7 @@ async function main() {
       ],
       requests: {
         upload: uploadHits(),
-        ingestionSources: ingestionHits(),
+        ingestionSources: ingestion.hits(),
         report: reportHits(),
       },
     }, null, 2));

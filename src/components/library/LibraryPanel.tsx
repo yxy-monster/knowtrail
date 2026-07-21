@@ -609,7 +609,7 @@ export function LibraryPanel({
         headers: accountHeaders,
       });
       if (!response.ok) {
-        setSourcePreview({ paper, status: 'missing' });
+        setSourcePreview({ paper, status: response.status === 404 ? 'missing' : 'error' });
         return;
       }
       const data = await response.json() as { source?: IngestionSourceDetail };
@@ -1516,7 +1516,15 @@ export function LibraryPanel({
               )}
               {sourcePreview.status === 'error' && (
                 <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-3 text-xs leading-relaxed text-red-200">
-                  来源片段读取失败，请稍后重试。
+                  <p>来源片段读取失败，请检查网络后重试。</p>
+                  <button
+                    type="button"
+                    data-testid="library-source-retry"
+                    className="mt-2 rounded-lg border border-red-300/30 bg-red-200/10 px-3 py-1.5 font-semibold text-red-100 transition hover:bg-red-200/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200/70"
+                    onClick={() => { void openSourcePreview(sourcePreview.paper, sourcePreviewFocus); }}
+                  >
+                    重新读取
+                  </button>
                 </div>
               )}
               {sourcePreview.status === 'ready' && (() => {
