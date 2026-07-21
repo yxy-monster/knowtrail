@@ -181,6 +181,16 @@ export const FEATURED_NOTEBOOKS: FeaturedNotebook[] = [
   },
 ];
 
+export function filterFeaturedNotebooks(query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return FEATURED_NOTEBOOKS;
+
+  return FEATURED_NOTEBOOKS.filter(notebook =>
+    [notebook.title, notebook.author, notebook.meta]
+      .some(value => value.toLowerCase().includes(normalizedQuery)),
+  );
+}
+
 export function isFeaturedNotebookId(id: string | null | undefined) {
   return FEATURED_NOTEBOOKS.some(notebook => notebook.id === id);
 }

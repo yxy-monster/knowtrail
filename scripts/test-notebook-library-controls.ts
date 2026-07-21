@@ -10,6 +10,7 @@ import {
   loadNotebookSourceCounts,
   mergeNotebookSourceCounts,
 } from '../src/lib/notebook-source-counts';
+import { filterFeaturedNotebooks } from '../src/components/home/featured-notebooks';
 
 const notebooks = [
   { id: 'older', title: 'Older', sourceCount: 1, updatedAt: '2026-01-01T00:00:00.000Z', accent: '' },
@@ -27,6 +28,8 @@ assert.equal(project('featured', 'latest', 'list').showPersonal, false);
 assert.equal(project('mine', 'latest', 'grid').showFeatured, false);
 assert.equal(project('mine', 'latest', 'grid').showPersonal, true);
 assert.equal(projectNotebookHome({ notebooks, query: 'new', filter: 'all', sort: 'title', view: 'list' }).notebooks[0].id, 'newer');
+assert.deepEqual(filterFeaturedNotebooks('科研').map(item => item.id), ['featured-research-reading']);
+assert.deepEqual(filterFeaturedNotebooks('不存在的模板'), []);
 
 const folders = [{ id: 'folder-a' }, { id: 'folder-b' }];
 assert.equal(resolveLibraryUploadTarget('folder-b', folders), 'folder-b');

@@ -32,6 +32,7 @@ import {
   type NotebookHomeSort,
   type NotebookHomeView,
 } from '@/lib/notebook-home-controls';
+import { filterFeaturedNotebooks } from '@/components/home/featured-notebooks';
 
 type NotebookHomeProps = {
   embedded: boolean;
@@ -125,8 +126,9 @@ export function NotebookHome({
   const archivedItems = archivedNotebooks(notebooks);
   const projection = projectNotebookHome({ notebooks: activeNotebooks, query, filter, sort, view });
   const filteredNotebooks = projection.notebooks;
+  const filteredFeaturedNotebooks = filterFeaturedNotebooks(query);
   const filteredArchivedItems = archivedItems.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
-  const hasSearchMatches = filteredNotebooks.length > 0 || filteredArchivedItems.length > 0;
+  const hasSearchMatches = filteredFeaturedNotebooks.length > 0 || filteredNotebooks.length > 0 || filteredArchivedItems.length > 0;
 
   const beginRename = (notebook: WorkspaceNotebook) => {
     setEditingNotebook(notebook);
@@ -248,7 +250,13 @@ export function NotebookHome({
           </div>
         </div>
 
-        {projection.showFeatured && <FeaturedNotebookStrip disabled={!notebooksReady} onOpen={onOpenFeatured} />}
+        {projection.showFeatured && filteredFeaturedNotebooks.length > 0 && (
+          <FeaturedNotebookStrip
+            disabled={!notebooksReady}
+            items={filteredFeaturedNotebooks}
+            onOpen={onOpenFeatured}
+          />
+        )}
 
         {projection.showPersonal && <section className="mx-auto max-w-7xl px-4 py-6 sm:px-5 sm:py-8">
           <div className="mb-4 flex items-center justify-between gap-4">
@@ -275,10 +283,14 @@ export function NotebookHome({
                 />
               ))}
             </div>
-          ) : !hasSearchMatches ? (
+          ) : null}
+        </section>}
+
+        {normalizedQuery && !hasSearchMatches && (
+          <section className="mx-auto max-w-7xl px-4 py-8 sm:px-5">
             <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
               <Search className="h-6 w-6 text-slate-400" />
-              <p className="mt-3 text-sm font-semibold text-slate-900">没有匹配的文献本</p>
+              <p className="mt-3 text-sm font-semibold text-slate-900">没有匹配的文献本或精选模板</p>
               <button
                 type="button"
                 onClick={() => setQuery('')}
@@ -287,8 +299,8 @@ export function NotebookHome({
                 清除搜索
               </button>
             </div>
-          ) : null}
-        </section>}
+          </section>
+        )}
 
         {archivedItems.length > 0 && (
           <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-5" data-testid="notebook-home-archived">

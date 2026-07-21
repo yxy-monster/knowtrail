@@ -6,23 +6,28 @@ import {
   formatNotebookDate,
   type WorkspaceNotebook,
 } from '@/components/home/workspace-types';
-import { FEATURED_NOTEBOOKS } from '@/components/home/featured-notebooks';
+import {
+  FEATURED_NOTEBOOKS,
+  type FeaturedNotebook,
+} from '@/components/home/featured-notebooks';
 
 export function FeaturedNotebookStrip({
   disabled,
+  items = FEATURED_NOTEBOOKS,
   onOpen,
 }: {
   disabled: boolean;
+  items?: FeaturedNotebook[];
   onOpen: (id: string) => void;
 }) {
   return (
     <section className="mx-auto max-w-7xl px-4 pb-6 pt-7 sm:px-5 sm:pb-8" data-testid="notebook-home-featured-strip">
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">精选模板</h2>
-        <span className="text-sm text-slate-500">4 个研究场景</span>
+        <span className="text-sm text-slate-500">{items.length} 个研究场景</span>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        {FEATURED_NOTEBOOKS.map((item) => (
+        {items.map((item) => (
           <button
             key={item.id}
             type="button"
