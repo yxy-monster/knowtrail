@@ -195,7 +195,7 @@ export function ThreeColumnLayout({
             title="展开资料库"
             aria-label="展开资料库"
           >
-            <PanelLeftOpen className="h-4 w-4" />
+            <PanelLeftOpen className="pointer-events-none h-4 w-4" />
           </button>
           <LibraryBig className="mt-1 h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
           <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.18em] text-[var(--text-tertiary)]">资料库</span>
@@ -248,7 +248,7 @@ export function ThreeColumnLayout({
             title="收起资料库"
             aria-label="收起资料库"
           >
-            <PanelLeftClose className="h-3.5 w-3.5" />
+            <PanelLeftClose className="pointer-events-none h-3.5 w-3.5" />
           </button>
         )}
         {!rightCollapsed && (
@@ -260,7 +260,7 @@ export function ThreeColumnLayout({
             title="收起产物中心"
             aria-label="收起产物中心"
           >
-            <PanelRightClose className="h-3.5 w-3.5" />
+            <PanelRightClose className="pointer-events-none h-3.5 w-3.5" />
           </button>
         )}
       </div>
@@ -311,7 +311,7 @@ export function ThreeColumnLayout({
             title="展开产物中心"
             aria-label="展开产物中心"
           >
-            <PanelRightOpen className="h-4 w-4" />
+            <PanelRightOpen className="pointer-events-none h-4 w-4" />
           </button>
           <Sparkles className="mt-1 h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
           <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.18em] text-[var(--text-tertiary)]">产物中心</span>
