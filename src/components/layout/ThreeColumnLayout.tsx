@@ -118,7 +118,6 @@ export function ThreeColumnLayout({
   }, [initialMobilePanel]);
 
   if (isMobile) {
-    const activePanel = mobilePanel === 'left' ? leftPanel : mobilePanel === 'right' ? rightPanel : centerPanel;
     const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
       { id: 'left', label: '资料' },
       { id: 'center', label: '对话' },
@@ -147,7 +146,9 @@ export function ThreeColumnLayout({
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
-          {activePanel}
+          <div className={mobilePanel === 'left' ? 'h-full' : 'hidden'}>{leftPanel}</div>
+          <div className={mobilePanel === 'center' ? 'h-full' : 'hidden'}>{centerPanel}</div>
+          <div className={mobilePanel === 'right' ? 'h-full' : 'hidden'}>{rightPanel}</div>
         </div>
       </div>
     );

@@ -425,6 +425,15 @@ async function main() {
     const arkKeyPrefix = ['ark', 'test'].join('-');
     assert(!bodyText.includes(testKeyPrefix) && !bodyText.includes(arkKeyPrefix), 'Visible Studio evidence UI leaked a test-looking API key.');
 
+    const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await interceptAccountStatus(mobilePage);
+    const mobileIngestion = await interceptIngestionSources(mobilePage);
+    await mobilePage.goto(`${appOrigin}/?view=workbench#workbench`, { waitUntil: 'domcontentloaded' });
+    await expectVisible(mobilePage.getByTestId('workbench-mobile-tab-center'), 'Mobile workbench did not open the conversation panel.');
+    await mobilePage.waitForTimeout(800);
+    assert(mobileIngestion.hits() > 0, 'Mobile workbench must restore sources before the user opens the library tab.');
+    await mobilePage.close();
+
     console.log(JSON.stringify({
       ok: true,
       appOrigin,
@@ -448,6 +457,7 @@ async function main() {
         'library CSV source detail renders data preview, missing values, numeric summaries, and Results draft hint',
         'library source matrix compares selected sources without AI conclusions',
         'visible evidence UI does not leak API keys',
+        'mobile workbench restores sources while the conversation tab is active',
       ],
       requests: {
         upload: uploadHits(),
