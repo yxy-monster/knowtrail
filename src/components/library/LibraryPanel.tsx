@@ -1173,30 +1173,29 @@ export function LibraryPanel({
                     <div
                       key={paper.id}
                       data-testid={`library-paper-${paper.id}`}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`打开来源${paper.title}`}
-                      aria-selected={selectedPapers.includes(paper.id)}
-                      className={`library-source-card flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group animate-fade-in-up ${
+                      className={`library-source-card relative flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group animate-fade-in-up ${
                         selectedPapers.includes(paper.id)
                           ? 'library-source-card-selected'
                           : ''
                       } ${flashPaperId === paper.id ? 'ring-2 ring-blue-400/80 bg-blue-500/10' : ''}`}
                       style={{ animationDelay: `${idx * 40}ms` }}
-                      onClick={() => { void openSourcePreview(paper); }}
-                      onKeyDown={(event) => {
-                        if (event.key !== 'Enter' && event.key !== ' ') return;
-                        event.preventDefault();
-                        void openSourcePreview(paper);
-                      }}
                       onContextMenu={(e) => handleContextMenu(e, paper)}
                     >
+                      <button
+                        type="button"
+                        data-testid={`library-source-open-${paper.id}`}
+                        aria-label={`打开来源${paper.title}`}
+                        aria-pressed={sourcePreview?.paper.id === paper.id}
+                        className="absolute inset-0 z-0 rounded-xl bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
+                        onClick={() => { void openSourcePreview(paper); }}
+                      />
+
                       {/* Checkbox */}
                       <button
                         type="button"
                         aria-label={selectedPapers.includes(paper.id) ? `取消选择${paper.title}` : `选择${paper.title}`}
                         title={selectedPapers.includes(paper.id) ? '取消选择来源' : '选择来源'}
-                        className="mt-0.5 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
+                        className="relative z-10 mt-0.5 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
                         onClick={(event) => {
                           event.stopPropagation();
                           togglePaperSelection(paper.id);
@@ -1209,9 +1208,11 @@ export function LibraryPanel({
                         )}
                       </button>
 
-                      <FileTypeIcon fileType={paper.fileType} />
+                      <span className="pointer-events-none relative z-10">
+                        <FileTypeIcon fileType={paper.fileType} />
+                      </span>
 
-                      <div className="pointer-events-none flex-1 min-w-0">
+                      <div className="pointer-events-none relative z-10 flex-1 min-w-0">
                         <p className="text-[13px] truncate font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-[11px] text-[var(--text-secondary)] mt-1 truncate">
                           {paper.authors.join(', ')} · {paper.year}
@@ -1249,7 +1250,7 @@ export function LibraryPanel({
                         {citationFocus?.paperId === paper.id && (
                           <div
                             data-testid="library-citation-focus"
-                            className="pointer-events-auto mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
+                            className="pointer-events-auto relative z-20 mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
@@ -1314,7 +1315,7 @@ export function LibraryPanel({
                       {/* More button */}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleContextMenu(e, paper); }}
-                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-all mt-0.5"
+                        className="relative z-10 opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-all mt-0.5"
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>

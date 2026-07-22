@@ -33,7 +33,12 @@ assert.match(
 assert.match(library, /来源阅读/, 'The in-place source reader needs a clear panel title');
 assert.match(
   library,
-  /className="pointer-events-none flex-1 min-w-0"/,
+  /data-testid=\{`library-source-open-\$\{paper\.id\}`\}[\s\S]{0,220}aria-label=\{`打开来源\$\{paper\.title\}`\}/,
+  'Each source needs a real full-card open button',
+);
+assert.match(
+  library,
+  /className="pointer-events-none relative z-10 flex-1 min-w-0"/,
   'Source-card text must not block the full-card open target',
 );
 assert.match(
