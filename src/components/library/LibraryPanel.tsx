@@ -402,6 +402,7 @@ export function LibraryPanel({
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
+  const [pendingRemovePaperId, setPendingRemovePaperId] = useState<string | null>(null);
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
   const [sourceMutationError, setSourceMutationError] = useState<string | null>(null);
   const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
@@ -940,10 +941,12 @@ export function LibraryPanel({
   const copyShortName = useCallback((paper: Paper) => {
     navigator.clipboard.writeText(`[${paper.shortName}]`);
     setContextMenu(null);
+    setPendingRemovePaperId(null);
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, paper: Paper) => {
     e.preventDefault();
+    setPendingRemovePaperId(null);
     setContextMenu({ x: e.clientX, y: e.clientY, paper });
   }, []);
 
@@ -967,7 +970,10 @@ export function LibraryPanel({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => setContextMenu(null)}
+      onClick={() => {
+        setContextMenu(null);
+        setPendingRemovePaperId(null);
+      }}
     >
       {/* Drag overlay */}
       {isDragOver && (
@@ -1786,6 +1792,7 @@ export function LibraryPanel({
             onClick={() => {
               const paper = contextMenu.paper;
               setContextMenu(null);
+              setPendingRemovePaperId(null);
               void openSourcePreview(paper);
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
@@ -1798,13 +1805,18 @@ export function LibraryPanel({
             data-testid="library-remove-paper"
             onClick={() => {
               const paper = contextMenu.paper;
-              if (window.confirm(`移除来源「${paper.title}」?`)) void handleRemovePaper(paper);
-              setContextMenu(null);
+              if (pendingRemovePaperId === paper.id) {
+                void handleRemovePaper(paper);
+                setContextMenu(null);
+                setPendingRemovePaperId(null);
+                return;
+              }
+              setPendingRemovePaperId(paper.id);
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+            className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors ${pendingRemovePaperId === contextMenu.paper.id ? 'bg-red-500/10 font-semibold' : ''}`}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            移除来源
+            {pendingRemovePaperId === contextMenu.paper.id ? '再次点击确认移除' : '移除来源'}
           </button>
         </div>
       )}

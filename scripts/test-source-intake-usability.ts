@@ -27,6 +27,11 @@ assert.match(library, /网址格式不正确/, 'URL intake needs recoverable for
 assert.match(guide, /正在读取网页/, 'URL intake needs an immediate loading state');
 assert.match(
   library,
+  /data-testid="library-remove-paper"[\s\S]{0,700}pendingRemovePaperId === paper\.id[\s\S]{0,700}再次点击确认移除/,
+  'Source removal must confirm inside the source menu instead of handing the flow to a native browser dialog',
+);
+assert.match(
+  library,
   /data-testid="library-source-detail-panel"[\s\S]{0,240}className="flex h-full w-full flex-col overflow-hidden/,
   'Source reading must replace the library panel in place instead of opening a floating modal',
 );
