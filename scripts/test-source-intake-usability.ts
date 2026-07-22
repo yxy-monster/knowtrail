@@ -8,6 +8,7 @@ function read(relativePath: string) {
 
 const guide = read('src/components/library/SourceGuideModal.tsx');
 const library = read('src/components/library/LibraryPanel.tsx');
+const page = read('src/app/page.tsx');
 
 assert.match(library, /data-testid="library-add-source"/, 'Library header needs one primary add-source action');
 assert.match(library, />\s*添加来源\s*</, 'The primary source action must use the expected user language');
@@ -30,5 +31,10 @@ assert.match(
   'Source reading must replace the library panel in place instead of opening a floating modal',
 );
 assert.match(library, /来源阅读/, 'The in-place source reader needs a clear panel title');
+assert.match(
+  page,
+  /<AcademicPresenterContent[\s\S]{0,500}accountAuthRequired=\{accountAuthRequired\}/,
+  'Embedded paper-host guests must use the resolved auth boundary so persisted sources restore after refresh',
+);
 
 console.log('source intake usability contract passed');

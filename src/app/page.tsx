@@ -466,7 +466,7 @@ export default function HomePage() {
             showSourceGuide={showSourceGuide}
             onSourceGuideDismiss={() => setShowSourceGuide(false)}
             accountSession={accountSession}
-            accountAuthRequired={accountStatus?.authRequired !== false}
+            accountAuthRequired={accountAuthRequired}
             paperHostContext={paperHostContext}
             templateCopy={Boolean(activeTemplateId)}
           />
