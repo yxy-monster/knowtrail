@@ -13,7 +13,8 @@ export interface WorkspaceNotebook {
 export type AccountCenterStatus = {
   configured: boolean;
   publicUrl: string | null;
-  billingMode: 'not_configured' | 'portal_only' | 'reservation_ready';
+  billingMode: 'not_configured' | 'portal_only' | 'reservation_ready' | 'local_quota';
+  localQuotaPath: string | null;
   billingReservationReady: boolean;
   authRequired?: boolean;
 };

@@ -13,6 +13,7 @@ export const REQUIRED_ENV_GROUPS = [
   { name: 'model-name', keys: ['OPENAI_COMPAT_MODEL', 'ARK_MODEL'] },
   { name: 'bailian-image-api-key', keys: ['DASHSCOPE_API_KEY'] },
   { name: 'bailian-image-model', keys: ['DASHSCOPE_IMAGE_MODEL'], expectedValue: 'qwen-image-2.0' },
+  { name: 'billing-provider', keys: ['LOCAL_USAGE_QUOTA_PATH', 'ACCOUNT_CENTER_API_BASE'] },
   { name: 'account-api-base', keys: ['ACCOUNT_CENTER_API_BASE'] },
   { name: 'account-tenant', keys: ['ACCOUNT_CENTER_TENANT_ID'] },
   { name: 'account-member', keys: ['ACCOUNT_CENTER_DEFAULT_MEMBER_ID'] },
@@ -41,6 +42,7 @@ function parseEnv(text) {
 
 function missingRequiredGroups(values, groups = REQUIRED_ENV_GROUPS) {
   return groups.filter(group => {
+    if (values.get('LOCAL_USAGE_QUOTA_PATH') && group.name.startsWith('account-')) return false;
     const present = group.keys.some(key => {
       const value = values.get(key);
       return value
@@ -110,6 +112,10 @@ export function validateReleaseHealth(body, { sharedRoot }) {
   if (capabilities.serverFallbackModelConfigured !== true) failures.push('serverFallbackModelConfigured must be true');
   if (capabilities.bailianImageProviderConfigured !== true) failures.push('bailianImageProviderConfigured must be true');
   if (capabilities.accountCenter?.billingReservationReady !== true) failures.push('billingReservationReady must be true');
+  if (
+    capabilities.accountCenter?.billingMode === 'local_quota'
+    && !isInsideSharedRoot(capabilities.accountCenter?.localQuotaPath, sharedRoot)
+  ) failures.push('localQuotaStore path must stay inside shared root');
 
   for (const [name, value] of [
     ['sourceStore', capabilities.sourceStore?.path],
