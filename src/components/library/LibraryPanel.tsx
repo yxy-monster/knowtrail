@@ -157,6 +157,42 @@ interface IngestionSourceDetail extends IngestionSourceSummary {
   }>;
 }
 
+function localSourcePreviewFromPaper(paper: Paper): IngestionSourceDetail | null {
+  const content = (paper.rawContent || paper.content || paper.abstract || '').trim();
+  if (!paper.isSample || !content) return null;
+
+  const chunkTexts = content
+    .split(/(?<=[。！？.!?])/)
+    .map(text => text.trim())
+    .filter(Boolean);
+  const chunks = (chunkTexts.length > 0 ? chunkTexts : [content]).map((text, index) => ({
+    id: `${paper.id}-local-${index}`,
+    text,
+    chunkIndex: index,
+    paperShortName: paper.shortName,
+    sourceTitle: paper.title,
+  }));
+
+  return {
+    id: paper.id,
+    fileName: paper.fileName,
+    fileType: paper.fileType,
+    fileSize: paper.fileSize,
+    title: paper.title,
+    shortName: paper.shortName,
+    status: 'succeeded',
+    chunkCount: chunks.length,
+    tokenEstimate: Math.ceil(content.length / 4),
+    vectorIndex: paper.vectorIndex,
+    createdAt: paper.uploadTime,
+    updatedAt: paper.uploadTime,
+    abstract: paper.abstract,
+    content: paper.content,
+    rawContent: paper.rawContent,
+    chunks,
+  };
+}
+
 interface CitationContextSnippet {
   locator: string;
   text: string;
@@ -596,10 +632,11 @@ export function LibraryPanel({
 
   const openSourcePreview = useCallback(async (paper: Paper, focus: SourceMatrixPreviewFocus | null = null) => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
+    const localPreview = localSourcePreviewFromPaper(paper);
     setSourcePreviewFocus(focus);
     setSourcePreview({ paper, status: 'loading' });
     if (accountAuthRequired && !accountHeaders.Authorization) {
-      setSourcePreview({ paper, status: 'missing' });
+      setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'missing' });
       return;
     }
 
@@ -611,17 +648,19 @@ export function LibraryPanel({
         headers: accountHeaders,
       });
       if (!response.ok) {
-        setSourcePreview({ paper, status: response.status === 404 ? 'missing' : 'error' });
+        setSourcePreview(localPreview
+          ? { paper, status: 'ready', source: localPreview }
+          : { paper, status: response.status === 404 ? 'missing' : 'error' });
         return;
       }
       const data = await response.json() as { source?: IngestionSourceDetail };
       if (!data.source) {
-        setSourcePreview({ paper, status: 'missing' });
+        setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'missing' });
         return;
       }
       setSourcePreview({ paper, status: 'ready', source: data.source });
     } catch {
-      setSourcePreview({ paper, status: 'error' });
+      setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'error' });
     }
   }, [accountAuthRequired, accountSession?.token, notebookId]);
 
@@ -1585,6 +1624,11 @@ export function LibraryPanel({
                 const citationLeads = buildSourceCitationLeads(chunks);
                 return (
                   <div className="space-y-2">
+                    {sourcePreview.paper.isSample && (
+                      <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200">
+                        示例来源 · 已随模板保存在当前副本中
+                      </div>
+                    )}
                     {sourcePreviewFocus && (
                       <div
                         data-testid="library-source-matrix-focus"

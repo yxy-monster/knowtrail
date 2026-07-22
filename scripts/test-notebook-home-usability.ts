@@ -9,6 +9,8 @@ function read(relativePath: string) {
 const home = read('src/components/home/NotebookHome.tsx');
 const cards = read('src/components/home/NotebookCards.tsx');
 const page = read('src/app/page.tsx');
+const featured = read('src/components/home/featured-notebooks.ts');
+const library = read('src/components/library/LibraryPanel.tsx');
 
 assert.match(home, /projectNotebookHome/, 'Notebook filters, sorting and view controls must drive the rendered projection');
 assert.match(home, /notebook-home-filter-\$\{value\}/, 'Notebook range buttons need stable test targets');
@@ -37,6 +39,9 @@ assert.match(cards, /ArrowUpRight/, 'Open action must remain visible without rel
 assert.match(cards, /focus-visible:ring-/, 'Cards need visible keyboard focus');
 assert.match(cards, /pointer-events-none[\s\S]*item\.title/, 'Featured card content must not intercept the full-card click target');
 assert.match(cards, /创建个人副本/, 'Featured cards must explain that using a template creates an independent notebook copy');
+assert.match(featured, /ingestionChunkCount: sampleChunkCount\(input\.content\)/, 'Featured source counts must describe the readable sample content');
+assert.match(library, /localSourcePreviewFromPaper/, 'Featured sources need a local readable preview when no ingestion record exists');
+assert.match(library, /示例来源 · 已随模板保存在当前副本中/, 'Featured source reading must clearly label saved template content');
 
 assert.match(home, /已归档/, 'Archived notebooks need a visible recovery section');
 assert.match(home, /恢复/, 'Archived notebooks need a restore action');

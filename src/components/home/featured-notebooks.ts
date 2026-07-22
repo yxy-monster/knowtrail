@@ -14,6 +14,10 @@ export interface FeaturedNotebook {
 
 const FEATURED_UPDATED_AT = '2026-06-01T00:00:00.000Z';
 
+function sampleChunkCount(content: string) {
+  return content.split(/[。！？.!?]+/).filter(part => part.trim()).length;
+}
+
 function samplePaper(input: {
   id: string;
   title: string;
@@ -39,7 +43,7 @@ function samplePaper(input: {
     uploadTime: FEATURED_UPDATED_AT,
     isSample: true,
     ingestionStatus: 'succeeded',
-    ingestionChunkCount: 4,
+    ingestionChunkCount: sampleChunkCount(input.content),
     vectorIndex: { status: 'not_configured' },
     mineruFigures: [],
   };
