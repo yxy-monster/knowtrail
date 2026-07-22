@@ -39,6 +39,7 @@ assert.match(home, /<FeaturedNotebookStrip[\s\S]*view=\{view === 'list' \? 'list
 assert.match(cards, /min-h-\[140px\]/, 'Featured cards must use a compact stable height');
 assert.match(cards, /min-h-\[184px\]/, 'Notebook cards must avoid the previous oversized layout');
 assert.match(cards, /data-testid={`notebook-home-actions-\$\{notebook\.id\}`}/, 'Notebook cards need a real lifecycle menu');
+assert.match(cards, /view === 'list' \? 'bottom-10' : 'top-10'/, 'List lifecycle menus must open upward so archive stays inside the viewport');
 assert.match(cards, /重命名/, 'Notebook cards must expose rename');
 assert.match(cards, /归档/, 'Notebook cards must expose archive');
 assert.match(cards, /ArrowUpRight/, 'Open action must remain visible without relying on hover');

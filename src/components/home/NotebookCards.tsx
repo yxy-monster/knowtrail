@@ -143,7 +143,7 @@ export function NotebookCard({
           <MoreHorizontal className="h-4 w-4" />
         </button>
         {menuOpen && (
-          <div className="absolute right-0 top-10 z-20 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+          <div className={`absolute right-0 z-20 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl ${view === 'list' ? 'bottom-10' : 'top-10'}`}>
             <button
               type="button"
               onClick={() => { setMenuOpen(false); onRename(); }}
