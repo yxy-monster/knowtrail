@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { CitationReveal } from '@/contexts/AppContext';
+import { resolveCitationSourceId } from '@/lib/citation-source-identity';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -446,17 +447,22 @@ export function LibraryPanel({
     if (!revealPaperRequest) return;
     const { paperId, citation, token } = revealPaperRequest;
     if (handledRevealTokenRef.current === token) return;
-    const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
+    const resolvedPaperId = resolveCitationSourceId(
+      paperId,
+      citation || {},
+      folders.flatMap(folder => folder.papers),
+    );
+    const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === resolvedPaperId));
     if (!ownerFolder) return;
     handledRevealTokenRef.current = token;
     setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
     setSearchQuery('');
     setCitationContext(null);
     const timer = window.setTimeout(() => {
-      const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
+      const el = document.querySelector(`[data-testid="library-paper-${resolvedPaperId}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setFlashPaperId(paperId);
-      if (citation) setCitationFocus({ token, paperId, citation });
+      setFlashPaperId(resolvedPaperId);
+      if (citation) setCitationFocus({ token, paperId: resolvedPaperId, citation });
       window.setTimeout(() => {
         setFlashPaperId(null);
       }, 1400);
