@@ -12,11 +12,11 @@ import { applyClipboardModelSecrets } from './lib/real-env-setup.mjs';
 const fakeSecret = 'test-only-secret-value';
 const validEnv = [
   `KNOWTRAIL_OBSERVABILITY_HASH_KEY=${fakeSecret.repeat(2)}`,
-  'ARK_API_BASE=https://ark.example.com/api/v3',
-  `ARK_API_KEY=${fakeSecret}`,
-  'ARK_MODEL=doubao-test',
-  `SITIAN_API_TOKEN=${fakeSecret}`,
-  'SITIAN_IMAGE_PROVIDER_REQUIRED=true',
+  'OPENAI_COMPAT_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1',
+  `OPENAI_COMPAT_API_KEY=${fakeSecret}`,
+  'OPENAI_COMPAT_MODEL=qwen3.7-plus',
+  `DASHSCOPE_API_KEY=${fakeSecret}`,
+  'DASHSCOPE_IMAGE_MODEL=qwen-image-2.0',
   'ACCOUNT_CENTER_API_BASE=http://127.0.0.1:8088',
   'ACCOUNT_CENTER_TENANT_ID=tenant-test',
   'ACCOUNT_CENTER_DEFAULT_MEMBER_ID=member-test',
@@ -45,7 +45,7 @@ try {
     `${fakeBailianKey} ${fakeSitianToken}`,
   );
   assert.equal(clipboardValues.get('OPENAI_COMPAT_MODEL'), 'qwen3.7-plus');
-  assert.equal(clipboardValues.get('SITIAN_IMAGE_PROVIDER_REQUIRED'), 'true');
+  assert.equal(clipboardValues.get('DASHSCOPE_IMAGE_MODEL'), 'qwen-image-2.0');
   assert(!JSON.stringify(clipboardSummary).includes(fakeBailianKey));
   assert(!JSON.stringify(clipboardSummary).includes(fakeSitianToken));
 
@@ -63,7 +63,7 @@ try {
   assert.deepEqual(summary.missingGroups, []);
 
   const incompletePath = path.join(tempDir, 'incomplete.env');
-  await writeFile(incompletePath, validEnv.replace(/^ARK_API_KEY=.*\n/m, ''), 'utf8');
+  await writeFile(incompletePath, validEnv.replace(/^OPENAI_COMPAT_API_KEY=.*\n/m, ''), 'utf8');
   await chmod(incompletePath, 0o600);
   await assert.rejects(
     () => prepareReleaseEnvironment({ sourcePath: incompletePath, targetPath }),
@@ -89,13 +89,13 @@ try {
   const missingImageProviderPath = path.join(tempDir, 'missing-image-provider.env');
   await writeFile(
     missingImageProviderPath,
-    validEnv.replace(/^SITIAN_API_TOKEN=.*\n/m, ''),
+    validEnv.replace(/^DASHSCOPE_API_KEY=.*\n/m, ''),
     'utf8',
   );
   await chmod(missingImageProviderPath, 0o600);
   await assert.rejects(
     () => prepareReleaseEnvironment({ sourcePath: missingImageProviderPath, targetPath }),
-    /image-provider-token/,
+    /bailian-image-api-key/,
   );
 
   const health = {
@@ -103,8 +103,7 @@ try {
     capabilities: {
       accountBoundModelConfig: true,
       serverFallbackModelConfigured: true,
-      sitianImageProviderConfigured: true,
-      sitianImageProviderRequired: true,
+      bailianImageProviderConfigured: true,
       vectorStore: { path: '/opt/knowtrail/shared/zvec' },
       sourceStore: { path: '/opt/knowtrail/shared/sources/sources.json' },
       studioJobStore: { path: '/opt/knowtrail/shared/studio-jobs/jobs.json' },
@@ -129,9 +128,9 @@ try {
   assert.throws(
     () => validateReleaseHealth({
       ...health,
-      capabilities: { ...health.capabilities, sitianImageProviderConfigured: false },
+      capabilities: { ...health.capabilities, bailianImageProviderConfigured: false },
     }, { sharedRoot: '/opt/knowtrail/shared' }),
-    /sitianImageProviderConfigured/,
+    /bailianImageProviderConfigured/,
   );
   assert.throws(
     () => validateReleaseHealth({

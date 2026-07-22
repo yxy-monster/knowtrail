@@ -60,6 +60,13 @@ const compatibleImage = readiness({
 assert.equal(compatibleImage.imagePpt.ready, true);
 assert.equal(compatibleImage.scientificIllustration.ready, true);
 
+const bailianImage = readiness({
+  DASHSCOPE_API_KEY: 'test-key',
+  DASHSCOPE_IMAGE_MODEL: 'qwen-image-2.0',
+});
+assert.equal(bailianImage.scientificIllustration.ready, true);
+assert.equal(bailianImage.imagePpt.ready, false);
+
 const partialProvider = readiness({
   OPENAI_COMPAT_API_BASE: 'https://models.example.com/v1',
   OPENAI_COMPAT_MODEL: 'text-model',
@@ -78,6 +85,7 @@ console.log(JSON.stringify({
     'image-only scientific illustration readiness',
     'combined image PPT readiness',
     'OpenAI-compatible image fallback readiness',
+    'Bailian qwen-image-2.0 readiness',
     'partial provider configuration rejection',
   ],
 }, null, 2));

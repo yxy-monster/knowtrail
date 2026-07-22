@@ -2,6 +2,9 @@ const ORDERED_KEYS = [
   'OPENAI_COMPAT_API_BASE',
   'OPENAI_COMPAT_API_KEY',
   'OPENAI_COMPAT_MODEL',
+  'DASHSCOPE_API_KEY',
+  'DASHSCOPE_IMAGE_API_BASE',
+  'DASHSCOPE_IMAGE_MODEL',
   'SITIAN_API_BASE',
   'SITIAN_API_TOKEN',
   'SITIAN_IMAGE_PROVIDER_REQUIRED',
@@ -40,6 +43,9 @@ export function applyClipboardModelSecrets(values, clipboard) {
     values.set('OPENAI_COMPAT_API_BASE', 'https://dashscope.aliyuncs.com/compatible-mode/v1');
     values.set('OPENAI_COMPAT_API_KEY', bailianKey);
     values.set('OPENAI_COMPAT_MODEL', 'qwen3.7-plus');
+    values.set('DASHSCOPE_API_KEY', bailianKey);
+    values.set('DASHSCOPE_IMAGE_API_BASE', 'https://dashscope.aliyuncs.com/api/v1');
+    values.set('DASHSCOPE_IMAGE_MODEL', 'qwen-image-2.0');
   }
   if (sitianToken) {
     values.set('SITIAN_API_BASE', 'https://images.sitianai.com');

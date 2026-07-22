@@ -10,6 +10,7 @@ import {
   resolveStudioGenerationReadiness,
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
+import { generateSlideImage } from '@/lib/ppt/image-generation';
 
 // ============================================================
 // Banana Slides PPT Generation Pipeline (Strict Alignment)
@@ -241,6 +242,9 @@ async function generateImage(prompt: string, options?: {
   referenceImageBase64?: string;
   runtimeConfig?: Partial<RuntimeAIConfig>;
 }): Promise<string | null> {
+  if (process.env.DASHSCOPE_API_KEY?.trim()) {
+    return generateSlideImage(prompt, options);
+  }
   // 1. 优先尝试思坦AI
   if (SITIAN_API_TOKEN) {
     console.log('[生图] 尝试思坦AI...');

@@ -59,6 +59,10 @@ export async function GET() {
         process.env.SITIAN_API_BASE,
         process.env.SITIAN_API_TOKEN,
       ]),
+      bailianImageProviderConfigured: hasAll([
+        process.env.DASHSCOPE_API_KEY,
+        process.env.DASHSCOPE_IMAGE_MODEL,
+      ]) && process.env.DASHSCOPE_IMAGE_MODEL === 'qwen-image-2.0',
       sitianImageProviderRequired: process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true',
       fileStorageAdapter: isUsingObjectStorage() ? 's3' : 'local',
       objectStorageConfigured: isObjectStorageConfigured(),

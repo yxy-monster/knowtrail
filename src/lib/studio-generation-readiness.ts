@@ -45,7 +45,11 @@ export function resolveStudioGenerationReadiness(
     envFirst(env, 'OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'),
     envFirst(env, 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL', 'OPENAI_COMPAT_VISION_MODEL', 'ARK_VISION_MODEL'),
   ]);
-  const imageReady = sitianReady || compatibleImageReady;
+  const bailianImageReady = hasAll([
+    envFirst(env, 'DASHSCOPE_API_KEY'),
+    envFirst(env, 'DASHSCOPE_IMAGE_MODEL'),
+  ]);
+  const imageReady = bailianImageReady || sitianReady || compatibleImageReady;
 
   const textUnavailable = '演示文稿生成服务正在配置中，当前不会提交生成任务，请稍后重试。';
   const chatUnavailable = '文献问答服务正在配置中，当前不会提交问答任务，请稍后重试。';
