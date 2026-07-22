@@ -32,6 +32,16 @@ assert.match(
 );
 assert.match(library, /来源阅读/, 'The in-place source reader needs a clear panel title');
 assert.match(
+  library,
+  /className="pointer-events-none flex-1 min-w-0"/,
+  'Source-card text must not block the full-card open target',
+);
+assert.match(
+  library,
+  /data-testid="library-citation-focus"[\s\S]{0,180}pointer-events-auto/,
+  'Citation controls must remain independently interactive inside a full-card open target',
+);
+assert.match(
   page,
   /<AcademicPresenterContent[\s\S]{0,500}accountAuthRequired=\{accountAuthRequired\}/,
   'Embedded paper-host guests must use the resolved auth boundary so persisted sources restore after refresh',

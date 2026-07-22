@@ -1211,7 +1211,7 @@ export function LibraryPanel({
 
                       <FileTypeIcon fileType={paper.fileType} />
 
-                      <div className="flex-1 min-w-0">
+                      <div className="pointer-events-none flex-1 min-w-0">
                         <p className="text-[13px] truncate font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-[11px] text-[var(--text-secondary)] mt-1 truncate">
                           {paper.authors.join(', ')} · {paper.year}
@@ -1249,7 +1249,7 @@ export function LibraryPanel({
                         {citationFocus?.paperId === paper.id && (
                           <div
                             data-testid="library-citation-focus"
-                            className="mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
+                            className="pointer-events-auto mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
