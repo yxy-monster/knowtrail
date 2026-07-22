@@ -12,6 +12,7 @@ import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration
 import { resolveExplainerVideoProviderConfig } from '@/lib/explainer-video-provider';
 import { operationalObservabilityStatus } from '@/lib/operational-observability';
 import { resolveStudioGenerationReadiness } from '@/lib/studio-generation-readiness';
+import { localUploadStoreStatus } from '@/lib/local-file-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,7 @@ export async function GET() {
   let internalAppOriginValid = true;
   let internalAppOriginError: string | undefined;
   const scientificIllustrationStore = await scientificIllustrationStoreStatus();
+  const localUploadStore = await localUploadStoreStatus();
 
   try {
     resolveInternalAppOrigin();
@@ -65,6 +67,7 @@ export async function GET() {
       ]) && process.env.DASHSCOPE_IMAGE_MODEL === 'qwen-image-2.0',
       sitianImageProviderRequired: process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true',
       fileStorageAdapter: isUsingObjectStorage() ? 's3' : 'local',
+      localUploadStore,
       objectStorageConfigured: isObjectStorageConfigured(),
       mineruConfigured: Boolean(process.env.MINERU_API_TOKEN?.trim()),
       mineruJob: mineruJobHealth(),

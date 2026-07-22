@@ -13,6 +13,7 @@ import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
 } from './lib/virtual-classroom/proxy-target';
+import { resolveLocalUploadsDir } from './lib/local-file-storage';
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
@@ -36,6 +37,7 @@ const app = next({ dev, hostname: bindHost, port });
 const handle = app.getRequestHandler();
 
 const publicDir = path.resolve(process.cwd(), 'public');
+const localUploadsDir = resolveLocalUploadsDir();
 const mainNextStaticDir = path.resolve(process.cwd(), '.next', 'static');
 const runtimePublicPrefixes = ['/uploads/', '/mineru-figures/'];
 const classroomRuntimeOrigin = (process.env.VIRTUAL_CLASSROOM_INTERNAL_ORIGIN || '').trim().replace(/\/$/, '');
@@ -65,10 +67,14 @@ function resolveRuntimePublicPath(pathname: string): string | null {
     return null;
   }
 
-  const relativePath = decodedPathname.replace(/^\/+/, '');
-  const absolutePath = path.resolve(publicDir, relativePath);
-  const relativeToPublic = path.relative(publicDir, absolutePath);
-  if (relativeToPublic.startsWith('..') || path.isAbsolute(relativeToPublic)) return null;
+  const isUpload = decodedPathname.startsWith('/uploads/');
+  const rootDir = isUpload ? localUploadsDir : publicDir;
+  const relativePath = isUpload
+    ? decodedPathname.slice('/uploads/'.length)
+    : decodedPathname.replace(/^\/+/, '');
+  const absolutePath = path.resolve(rootDir, relativePath);
+  const relativeToRoot = path.relative(rootDir, absolutePath);
+  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) return null;
   return absolutePath;
 }
 

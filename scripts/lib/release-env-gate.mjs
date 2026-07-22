@@ -21,6 +21,7 @@ export const REQUIRED_ENV_GROUPS = [
   { name: 'account-client-secret', keys: ['ACCOUNT_CENTER_CLIENT_SECRET'] },
   { name: 'account-auth-required', keys: ['ACCOUNT_CENTER_REQUIRE_AUTH'], expectedValue: 'true' },
   { name: 'source-store', keys: ['SOURCE_STORE_PATH'] },
+  { name: 'local-upload-store', keys: ['LOCAL_FILE_STORAGE_DIR'] },
   { name: 'vector-store', keys: ['ZVEC_STORE_PATH'] },
   { name: 'studio-job-store', keys: ['STUDIO_JOB_STORE_PATH'] },
   { name: 'scientific-illustration-store', keys: ['SCIENTIFIC_ILLUSTRATION_STORE_DIR'] },
@@ -115,11 +116,15 @@ export function validateReleaseHealth(body, { sharedRoot }) {
     ['vectorStore', capabilities.vectorStore?.path],
     ['studioJobStore', capabilities.studioJobStore?.path],
     ['scientificIllustrationStore', capabilities.scientificIllustrationStore?.path],
+    ['localUploadStore', capabilities.localUploadStore?.path],
   ]) {
     if (!isInsideSharedRoot(value, sharedRoot)) failures.push(`${name} path must stay inside shared root`);
   }
   if (capabilities.scientificIllustrationStore?.writable !== true) {
     failures.push('scientificIllustrationStore must be writable');
+  }
+  if (capabilities.localUploadStore?.writable !== true) {
+    failures.push('localUploadStore must be writable');
   }
   if (failures.length > 0) throw new Error(`Release health gate failed: ${failures.join('; ')}`);
 
@@ -134,6 +139,7 @@ export function validateReleaseHealth(body, { sharedRoot }) {
       vectorStore: capabilities.vectorStore.path,
       studioJobStore: capabilities.studioJobStore.path,
       scientificIllustrationStore: capabilities.scientificIllustrationStore.path,
+      localUploadStore: capabilities.localUploadStore.path,
     },
   };
 }

@@ -25,6 +25,7 @@ const validEnv = [
   `ACCOUNT_CENTER_CLIENT_SECRET=${fakeSecret}`,
   'ACCOUNT_CENTER_REQUIRE_AUTH=true',
   'SOURCE_STORE_PATH=/opt/knowtrail/shared/sources/sources.json',
+  'LOCAL_FILE_STORAGE_DIR=/opt/knowtrail/shared/uploads',
   'ZVEC_STORE_PATH=/opt/knowtrail/shared/zvec',
   'STUDIO_JOB_STORE_PATH=/opt/knowtrail/shared/studio-jobs/jobs.json',
   'SCIENTIFIC_ILLUSTRATION_STORE_DIR=/opt/knowtrail/shared/scientific-illustrations',
@@ -106,6 +107,7 @@ try {
       bailianImageProviderConfigured: true,
       vectorStore: { path: '/opt/knowtrail/shared/zvec' },
       sourceStore: { path: '/opt/knowtrail/shared/sources/sources.json' },
+      localUploadStore: { path: '/opt/knowtrail/shared/uploads', writable: true },
       studioJobStore: { path: '/opt/knowtrail/shared/studio-jobs/jobs.json' },
       scientificIllustrationStore: {
         path: '/opt/knowtrail/shared/scientific-illustrations',
