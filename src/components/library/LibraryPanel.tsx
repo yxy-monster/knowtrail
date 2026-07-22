@@ -1625,7 +1625,7 @@ export function LibraryPanel({
                 return (
                   <div className="space-y-2">
                     {sourcePreview.paper.isSample && (
-                      <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200">
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-[11px] font-medium text-blue-700">
                         示例来源 · 已随模板保存在当前副本中
                       </div>
                     )}
@@ -1699,11 +1699,11 @@ export function LibraryPanel({
                     {citationLeads.length > 0 && (
                       <div
                         data-testid="library-source-citation-leads"
-                        className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3"
+                        className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-3"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-xs font-semibold text-blue-200">引用线索</div>
-                          <div className="text-[10px] text-blue-200/65">基于已入库片段</div>
+                          <div className="text-xs font-semibold text-blue-700">引用线索</div>
+                          <div className="text-[10px] text-blue-600">基于已入库片段</div>
                         </div>
                         <p className="mt-1 text-[10px] leading-relaxed text-[var(--text-tertiary)]">
                           以下候选句只来自当前来源片段，用于写作时回查证据，不替代阅读全文。
@@ -1713,11 +1713,11 @@ export function LibraryPanel({
                             <div
                               key={lead.id}
                               data-testid="library-source-citation-lead"
-                              className="rounded-lg border border-blue-300/15 bg-black/10 px-2.5 py-2"
+                              className="rounded-lg border border-blue-200 bg-white/80 px-2.5 py-2"
                             >
-                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-200">
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-700">
                                 <span>线索 {index + 1}</span>
-                                <span className="text-blue-300/45">·</span>
+                                <span className="text-blue-300">·</span>
                                 <span>{lead.locator}</span>
                               </div>
                               <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
@@ -1744,11 +1744,11 @@ export function LibraryPanel({
                             : 'border-[var(--border-subtle)] bg-[var(--glass-subtle)]'
                         }`}
                       >
-                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-300">
+                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-600">
                           <span>{sourceChunkLocator(chunk)}</span>
                           {chunk.sourceTitle && chunk.sourceTitle !== sourcePreview.source.title && (
                             <>
-                              <span className="text-blue-300/45">·</span>
+                              <span className="text-blue-300">·</span>
                               <span className="truncate text-[var(--text-tertiary)]">{chunk.sourceTitle}</span>
                             </>
                           )}

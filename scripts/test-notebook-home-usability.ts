@@ -42,6 +42,7 @@ assert.match(cards, /创建个人副本/, 'Featured cards must explain that usin
 assert.match(featured, /ingestionChunkCount: sampleChunkCount\(input\.content\)/, 'Featured source counts must describe the readable sample content');
 assert.match(library, /localSourcePreviewFromPaper/, 'Featured sources need a local readable preview when no ingestion record exists');
 assert.match(library, /示例来源 · 已随模板保存在当前副本中/, 'Featured source reading must clearly label saved template content');
+assert.match(library, /border-blue-200 bg-blue-50\/80/, 'Source-reading evidence cards need readable contrast on the light workbench');
 
 assert.match(home, /已归档/, 'Archived notebooks need a visible recovery section');
 assert.match(home, /恢复/, 'Archived notebooks need a restore action');
