@@ -112,6 +112,12 @@ async function expectDisabled(locator, message) {
   assert(disabled, message);
 }
 
+async function openStudioTool(page, testId) {
+  const backButton = page.getByTestId('studio-back-to-directory');
+  if (await backButton.isVisible().catch(() => false)) await backButton.click();
+  await page.getByTestId(testId).click();
+}
+
 function assertServerManagedAIConfig(config, routeName) {
   const values = [config?.apiBase, config?.apiKey, config?.model, config?.visionModel, config?.embeddingModel];
   assert(values.every(value => !String(value || '').trim()), `${routeName} leaked provider configuration from the browser.`);
@@ -165,7 +171,7 @@ async function main() {
     await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
     await expectVisible(page.getByText('产物中心', { exact: true }), 'Product center did not render');
 
-    await page.getByTestId('studio-nav-presentation').click();
+    await openStudioTool(page, 'studio-nav-presentation');
     const noSourceButton = page.getByRole('button', { name: /先选择(资料|文献)/ }).first();
     await expectVisible(noSourceButton, 'No-source PPT guard did not render');
     await expectDisabled(noSourceButton, 'No-source PPT guard should be disabled');
@@ -175,7 +181,7 @@ async function main() {
     await expectVisible(noSourceAcademic, 'No-source academic report guard did not render');
     await expectDisabled(noSourceAcademic, 'No-source academic report guard should be disabled');
 
-    await page.getByTestId('studio-nav-knowledge').click();
+    await openStudioTool(page, 'studio-nav-knowledge');
     const noSourceKnowledgeMap = page.getByTestId('knowledge-map-generate');
     await expectVisible(noSourceKnowledgeMap, 'No-source knowledge-map guard did not render');
     await expectDisabled(noSourceKnowledgeMap, 'No-source knowledge-map guard should be disabled');
@@ -187,7 +193,7 @@ async function main() {
         .filter({ hasText: /已选 1 个文献来源|已选 1 篇/ }),
       'Uploaded source was not auto-selected',
     );
-    await page.getByTestId('studio-nav-presentation').click();
+    await openStudioTool(page, 'studio-nav-presentation');
     await expectVisible(page.getByTestId('image-ppt-generate'), 'PPT generate button did not become available after source selection');
 
     const pptHits = await interceptLongTask(page, '/api/ai/ppt', '/api/ai/ppt');
@@ -213,7 +219,7 @@ async function main() {
     await expectVisible(page.getByText('已取消生成，可以调整设置后重新开始。'), 'Academic report cancel recovery copy did not render');
     assert(pptV2Hits() >= 1, 'Academic PPT generation request was not issued');
 
-    await page.getByTestId('studio-nav-knowledge').click();
+    await openStudioTool(page, 'studio-nav-knowledge');
     const knowledgeMapGenerate = page.getByTestId('knowledge-map-generate');
     await expectVisible(knowledgeMapGenerate, 'Knowledge-map generate button did not render after source selection');
     if (await knowledgeMapGenerate.isDisabled()) throw new Error('Knowledge-map generate button stayed disabled after source selection');
