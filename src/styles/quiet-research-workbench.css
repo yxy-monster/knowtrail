@@ -1,8 +1,8 @@
 .quiet-research-workbench {
-  --quiet-bg: #f2f5fa;
-  --quiet-panel: #ffffff;
-  --quiet-panel-muted: #fafbfd;
-  --quiet-border: #e3e9f2;
+  --quiet-bg: #eaf1f8;
+  --quiet-panel: #fbfcfe;
+  --quiet-panel-muted: #f5f8fc;
+  --quiet-border: #d8e2ee;
   --quiet-text: #142033;
   --quiet-muted: #65738a;
   --quiet-accent: #2866d7;
@@ -21,7 +21,7 @@
   background: var(--quiet-panel);
   border: 1px solid var(--quiet-border);
   border-radius: 18px;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 3%), 0 10px 28px rgb(15 23 42 / 4%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%), 0 12px 30px rgb(52 76 108 / 6%);
   transition: width 240ms ease-out, opacity 180ms ease-out, box-shadow 180ms ease-out;
 }
 

@@ -11,6 +11,12 @@ const cards = read('src/components/home/NotebookCards.tsx');
 const page = read('src/app/page.tsx');
 const featured = read('src/components/home/featured-notebooks.ts');
 const library = read('src/components/library/LibraryPanel.tsx');
+const quietWorkbench = read('src/styles/quiet-research-workbench.css');
+
+assert.match(quietWorkbench, /--quiet-bg: #eaf1f8;/, 'The workbench needs a visible fog-blue page base');
+assert.match(quietWorkbench, /--quiet-panel: #fbfcfe;/, 'The three columns need a warm-white surface');
+assert.match(quietWorkbench, /--quiet-panel-muted: #f5f8fc;/, 'Muted panel areas need a distinct light surface');
+assert.match(quietWorkbench, /--quiet-border: #d8e2ee;/, 'Panel borders must remain soft on the new page base');
 
 assert.match(home, /projectNotebookHome/, 'Notebook filters, sorting and view controls must drive the rendered projection');
 assert.match(home, /notebook-home-filter-\$\{value\}/, 'Notebook range buttons need stable test targets');
