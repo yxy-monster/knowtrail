@@ -1320,8 +1320,12 @@ export function LibraryPanel({
 
                       {/* More button */}
                       <button
+                        type="button"
+                        data-testid={`library-source-menu-${paper.id}`}
+                        aria-label={`管理来源${paper.title}`}
+                        title="管理来源"
                         onClick={(e) => { e.stopPropagation(); handleContextMenu(e, paper); }}
-                        className="relative z-10 opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-all mt-0.5"
+                        className="relative z-10 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-all mt-0.5"
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
@@ -1776,7 +1780,7 @@ export function LibraryPanel({
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-[100] liquid-glass-card py-1.5 min-w-[180px] animate-scale-in"
+          className="!fixed z-[100] liquid-glass-card py-1.5 min-w-[180px] animate-scale-in"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >

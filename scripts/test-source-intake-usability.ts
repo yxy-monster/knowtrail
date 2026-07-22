@@ -32,6 +32,16 @@ assert.match(
 );
 assert.match(
   library,
+  /data-testid=\{`library-source-menu-\$\{paper\.id\}`\}[\s\S]{0,180}aria-label=\{`管理来源\$\{paper\.title\}`\}/,
+  'Each source card needs a discoverable management action',
+);
+assert.match(
+  library,
+  /className="!fixed z-\[100\] liquid-glass-card/,
+  'The source menu must remain viewport-fixed even though the shared glass card sets relative positioning',
+);
+assert.match(
+  library,
   /data-testid="library-source-detail-panel"[\s\S]{0,240}className="flex h-full w-full flex-col overflow-hidden/,
   'Source reading must replace the library panel in place instead of opening a floating modal',
 );
