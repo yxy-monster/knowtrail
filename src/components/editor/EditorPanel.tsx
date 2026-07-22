@@ -731,8 +731,8 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                       <button
                         key={qi}
                         onClick={() => onQuickQuestion(q)}
-                        disabled={!researchChatReadiness.ready}
-                        title={!researchChatReadiness.ready ? researchChatReadiness.message : q}
+                        disabled={!hasSelectedSources || !researchChatReadiness.ready}
+                        title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q : '请先在左侧选择证据来源'}
                         className="liquid-glass-chip text-[12px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {q}
@@ -812,8 +812,8 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                       onQuickQuestion(q.question);
                       closePanel();
                     }}
-                    disabled={!researchChatReadiness.ready}
-                    title={!researchChatReadiness.ready ? researchChatReadiness.message : q.question}
+                    disabled={!hasSelectedSources || !researchChatReadiness.ready}
+                    title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
                     className="quick-question-button liquid-glass-card flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-[12px] font-medium leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Icon className="h-[18px] w-[18px]" />
