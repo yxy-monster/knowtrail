@@ -8,7 +8,6 @@ import { EditorPanel } from '@/components/editor/EditorPanel';
 import {
   ACTIVE_TOOL_STORAGE_KEY,
   StudioPanel,
-  StudioWorkspacePanel,
 } from '@/components/studio/StudioPanel';
 import {
   getVisibleStudioNav,
@@ -60,25 +59,12 @@ const FEATURED_SOURCE_COUNTS = Object.fromEntries(
 
 function WorkbenchCenterPanel({
   compact,
-  activeStudioTab,
-  onCloseStudioWorkspace,
 }: {
   compact: boolean;
-  activeStudioTab: StudioTab | null;
-  onCloseStudioWorkspace: () => void;
 }) {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
   if (virtualClassroomViewer) return <VirtualClassroomWorkspace />;
   if (knowledgeMapViewer) return <KnowledgeMapWorkspace />;
-  if (activeStudioTab) {
-    return (
-      <StudioWorkspacePanel
-        compact={compact}
-        activeTab={activeStudioTab}
-        onClose={onCloseStudioWorkspace}
-      />
-    );
-  }
   return <EditorPanel compact={compact} />;
 }
 
@@ -154,8 +140,6 @@ function AcademicPresenterContent({
           centerPanel={(
             <WorkbenchCenterPanel
               compact={quiet}
-              activeStudioTab={activeStudioTab}
-              onCloseStudioWorkspace={closeStudioWorkspace}
             />
           )}
           rightPanel={(
@@ -163,13 +147,14 @@ function AcademicPresenterContent({
               compact={quiet}
               activeTab={activeStudioTab}
               onSelect={openStudioWorkspace}
+              onClose={closeStudioWorkspace}
             />
           )}
           appearance={quiet ? 'quiet-research' : 'glass'}
           defaultLeftWidth={quiet ? 272 : 280}
-          defaultRightWidth={quiet ? 420 : 500}
+          defaultRightWidth={quiet ? 440 : 500}
           initialMobilePanel={showSourceGuide ? 'left' : 'center'}
-          centerFocusKey={activeStudioTab}
+          rightFocusKey={activeStudioTab}
         />
       </div>
     </div>

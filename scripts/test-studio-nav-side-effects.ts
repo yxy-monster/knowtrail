@@ -69,11 +69,11 @@ assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
 assert.match(pageSource, /function openStudioWorkspace\(tab: StudioTab\)/, 'Workbench should expose one side-effect-free tool opening action');
-assert.match(pageSource, /function closeStudioWorkspace\(\)/, 'Workbench should expose an immediate return to document chat');
+assert.match(pageSource, /function closeStudioWorkspace\(\)/, 'Workbench should expose an immediate return to the product directory');
 assert.match(pageSource, /sessionStorage\.setItem\(ACTIVE_TOOL_STORAGE_KEY, tab\)/, 'Workbench should preserve the active tool across refresh');
 assert.match(studioPanelSource, /export function StudioWorkspacePanel/, 'Studio should expose the focused workspace independently from the right directory');
-assert.match(studioPanelSource, /data-testid="studio-back-to-chat"/, 'Focused workspaces should provide a stable return action');
-assert.match(studioPanelSource, /data-testid="studio-back-to-chat"[\s\S]*?<span>返回文献问答<\/span>/, 'Focused workspaces should label the return destination without relying on an icon alone');
+assert.match(studioPanelSource, /data-testid="studio-back-to-directory"/, 'Focused workspaces should provide a stable return action');
+assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label="返回产物中心"/, 'Focused workspaces should label the return destination without relying on an icon alone');
 assert.match(studioPanelSource, /data-testid="studio-directory-scroll"/, 'The product directory should own its scrolling');
 assert.match(studioPanelSource, /data-testid="studio-workspace-scroll"/, 'The focused workspace should own its scrolling');
 assert.doesNotMatch(studioPanelSource, /切换入口只打开对应工作区，检索或生成需在下方明确操作。/, 'Studio should not describe the removed appended-workspace interaction');

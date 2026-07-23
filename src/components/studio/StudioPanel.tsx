@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MessageSquare } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
@@ -29,10 +29,12 @@ export function StudioPanel({
   compact = false,
   activeTab,
   onSelect,
+  onClose,
 }: {
   compact?: boolean;
   activeTab: StudioTab | null;
   onSelect: (tab: StudioTab) => void;
+  onClose: () => void;
 }) {
   const [hideVirtualClassroom, setHideVirtualClassroom] = useState(false);
   const visibleNavItems = useMemo(
@@ -44,6 +46,16 @@ export function StudioPanel({
   useEffect(() => {
     setHideVirtualClassroom(shouldHideVirtualClassroom());
   }, []);
+
+  if (activeTab) {
+    return (
+      <StudioWorkspacePanel
+        compact={compact}
+        activeTab={activeTab}
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
     <div
@@ -60,7 +72,7 @@ export function StudioPanel({
             <h2 className={compact
               ? 'text-sm font-semibold tracking-tight text-[var(--text-primary)]'
               : 'text-base font-semibold tracking-tight text-[var(--text-primary)]'}>产物中心</h2>
-            <p className="text-[11px] text-[var(--text-tertiary)]">选择工具，在中间工作区完成输入与结果</p>
+            <p className="text-[11px] text-[var(--text-tertiary)]">选择工具，在右侧完成输入、进度与结果</p>
           </div>
         </div>
 
@@ -89,61 +101,56 @@ export function StudioWorkspacePanel({
 
   return (
     <div
-      data-testid="studio-workspace-center"
-      className="flex h-full min-h-0 flex-col"
+      data-testid="studio-workspace-right"
+      className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]"
       data-density={compact ? 'compact' : 'default'}
     >
       <div
-        data-testid="studio-conversation-header"
+        data-testid="studio-workspace-header"
         className={compact
-          ? 'flex shrink-0 items-center gap-3 border-b border-[#E4E9F1] bg-[var(--bg-primary)] px-4 py-3'
-          : 'flex shrink-0 items-center gap-3 border-b border-[var(--glass-border)] bg-[var(--bg-primary)] px-5 py-4'}
+          ? 'flex shrink-0 items-center gap-3 border-b border-[#E4E9F1] px-4 py-3'
+          : 'flex shrink-0 items-center gap-3 border-b border-[var(--glass-border)] px-5 py-4'}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
-          <MessageSquare className="h-4 w-4 text-blue-500" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="shrink-0 text-sm font-semibold tracking-tight text-[var(--text-primary)]">文献问答</h2>
-            <span className="truncate text-[11px] font-medium text-blue-600">{navItem.label}模式</span>
-          </div>
-          <p className="truncate text-[11px] text-[var(--text-tertiary)]">
-            输入、处理进度和结果都保留在当前会话中
-          </p>
-        </div>
         <button
           type="button"
-          data-testid="studio-back-to-chat"
+          data-testid="studio-back-to-directory"
           onClick={onClose}
-          className="liquid-glass-btn flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 text-xs text-[var(--text-secondary)]"
-          aria-label="返回文献问答"
-          title="返回文献问答"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+          aria-label="返回产物中心"
+          title="返回产物中心"
         >
           <ArrowLeft className="pointer-events-none h-4 w-4" />
-          <span>返回文献问答</span>
         </button>
+        <div className="min-w-0 flex-1">
+          <div
+            data-testid="studio-workspace-breadcrumb"
+            className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--text-tertiary)]"
+          >
+            <span>产物中心</span>
+            <span aria-hidden="true">›</span>
+            <span className="truncate">{navItem.label}</span>
+          </div>
+          <h2 className="mt-0.5 truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">{navItem.label}</h2>
+        </div>
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--glass-border)] bg-gradient-to-br ${navItem.accent}`}>
+          <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
+        </div>
       </div>
 
       <div
         data-testid="studio-workspace-scroll"
-        className={`min-h-0 flex-1 overflow-y-auto bg-[var(--bg-primary)] ${compact ? 'px-4 py-4' : 'px-6 py-5'}`}
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${compact ? 'px-4 py-4' : 'px-5 py-5'}`}
       >
-        <div className="mx-auto w-full max-w-3xl space-y-4">
-          <div data-testid="studio-tool-intro-message" className="flex items-start gap-3">
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--glass-border)] bg-gradient-to-br ${navItem.accent}`}>
-              <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
-            </div>
-            <div className="max-w-[88%] rounded-2xl rounded-tl-md border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-4 py-3">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">已切换到{navItem.label}</div>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-                {navItem.desc}。请在下方提供输入，我会在同一会话中持续显示处理进度和结果。
-              </p>
-            </div>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-3.5 py-3">
+            <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+              {navItem.desc}。中间文献问答保持可见，当前工具的输入、处理进度和结果集中在这里。
+            </p>
           </div>
 
           <div
-            data-testid="studio-tool-composer"
-            className="ml-11 rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-[0_16px_40px_rgba(70,96,128,0.08)]"
+            data-testid="studio-tool-content"
+            className="rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-[0_12px_30px_rgba(70,96,128,0.06)]"
           >
             {activeTab === 'paper-search' && <PaperSearchPanel />}
             {activeTab === 'deep-research' && <DeepResearchPanel />}
