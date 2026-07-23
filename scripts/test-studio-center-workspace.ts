@@ -35,6 +35,21 @@ assert.match(
   /data-testid="studio-back-to-chat"[\s\S]*返回文献问答/,
   'The center tool workspace should provide a clear return to document chat.',
 );
+assert.match(
+  studioPanelSource,
+  /data-testid="studio-conversation-header"[\s\S]*文献问答/,
+  'A selected tool should keep the center panel inside the document-chat chrome.',
+);
+assert.match(
+  studioPanelSource,
+  /data-testid="studio-tool-intro-message"/,
+  'The selected tool should begin as an assistant message in the conversation.',
+);
+assert.match(
+  studioPanelSource,
+  /data-testid="studio-tool-composer"/,
+  'The selected tool form and results should continue inside the conversation thread.',
+);
 assert.doesNotMatch(
   studioPanelSource.slice(
     studioPanelSource.indexOf('export function StudioPanel'),
@@ -59,6 +74,7 @@ console.log(JSON.stringify({
   checked: [
     'right panel remains the tool directory',
     'selected tool input and results render in the center panel',
+    'tool input remains visually integrated with document chat',
     'center workspace returns to document chat',
     'mobile tool selection focuses the center panel',
   ],
