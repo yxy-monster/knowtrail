@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       inputText: `${question}\n${hypothesis}`,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

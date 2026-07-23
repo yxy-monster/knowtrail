@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
       inputText: manuscript,
       promptContext: `${scope}\n${grounded?.promptContext || 'no external sources selected'}`,
       memberId: accountScope.ownerMemberId,
+      quotaExempt: accountScope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

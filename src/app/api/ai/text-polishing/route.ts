@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       inputText: sourceText,
       promptContext: goal,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

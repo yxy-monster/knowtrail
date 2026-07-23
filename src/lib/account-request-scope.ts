@@ -8,6 +8,7 @@ export interface AccountNotebookScope {
   tenantId?: string;
   ownerMemberId?: string;
   notebookId?: string;
+  usageQuotaExempt: boolean;
 }
 
 export type AccountNotebookScopeResult =
@@ -45,6 +46,7 @@ export async function resolveAccountNotebookScope(
       ok: true,
       ownerMemberId: paperHostScope.ownerMemberId,
       notebookId: normalizeNotebookId(input.notebookId),
+      usageQuotaExempt: paperHostScope.accountScope === 'current-user',
     };
   }
 
@@ -65,6 +67,7 @@ export async function resolveAccountNotebookScope(
       tenantId: accountSession?.tenant_id,
       ownerMemberId: accountSession?.member.id,
       notebookId: normalizeNotebookId(input.notebookId),
+      usageQuotaExempt: Boolean(accountSession),
     };
   } catch {
     return {

@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
         units: 1,
         inputText: input.purpose,
         memberId: accountScope.ownerMemberId,
+        quotaExempt: accountScope.usageQuotaExempt,
         idempotencyKey: request.headers.get('idempotency-key') || undefined,
       });
     } catch (billingError) {

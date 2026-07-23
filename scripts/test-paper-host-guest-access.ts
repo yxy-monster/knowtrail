@@ -28,6 +28,11 @@ async function main() {
     loginMessage: '请先登录。',
   });
   assert.equal(guestChat.ok, true, 'Ordinary agent features should remain available to a scoped guest.');
+  assert.equal(
+    guestChat.ok && 'usageQuotaExempt' in guestChat ? guestChat.usageQuotaExempt : false,
+    false,
+    'A scoped guest must remain subject to the local experience quota.',
+  );
 
   const guestHighCost = await resolveAccountNotebookScope(paperHostRequest('guest'), {
     notebookId: 'notebook-01',
@@ -68,6 +73,30 @@ async function main() {
     requireAuthenticatedPaperHost: true,
   });
   assert.equal(memberHighCost.ok, true, 'A signed-in paper-host scope should retain high-cost generation access.');
+  assert.equal(
+    memberHighCost.ok && 'usageQuotaExempt' in memberHighCost ? memberHighCost.usageQuotaExempt : false,
+    true,
+    'A signed-in paper-host account must bypass the local experience quota.',
+  );
+
+  const meteredRoutes = [
+    'src/app/api/ai/academic-writing/route.ts',
+    'src/app/api/ai/chat/route.ts',
+    'src/app/api/ai/deep-research/route.ts',
+    'src/app/api/ai/experiment-design/route.ts',
+    'src/app/api/ai/hypothesis-generation/route.ts',
+    'src/app/api/ai/peer-review/route.ts',
+    'src/app/api/ai/scientific-illustration/route.ts',
+    'src/app/api/ai/text-polishing/route.ts',
+  ];
+  for (const route of meteredRoutes) {
+    const source = fs.readFileSync(path.resolve(route), 'utf8');
+    assert.match(
+      source,
+      /quotaExempt:\s*(?:scope|accountScope)\.usageQuotaExempt/,
+      `${route} must apply the signed-in quota exemption.`,
+    );
+  }
 
   const protectedRoutes = [
     'src/app/api/ai/ppt/route.ts',
