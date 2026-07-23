@@ -348,11 +348,17 @@ async function main() {
 
   let smokeApp;
   let browser;
+  let page;
+  const pageDiagnostics = [];
   try {
     smokeApp = await resolveSmokeApp(tempDir);
     const { appOrigin } = smokeApp;
     browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    page.on('console', message => {
+      if (message.type() === 'error') pageDiagnostics.push(`console: ${message.text()}`);
+    });
+    page.on('pageerror', error => pageDiagnostics.push(`pageerror: ${error.message}`));
 
     await interceptAccountStatus(page);
     const ingestion = await interceptIngestionSources(page);
@@ -371,7 +377,9 @@ async function main() {
     await page.getByRole('button', { name: '选择Studio Evidence Source' }).click();
     await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 3 个(文献)?来源|已选 3 篇/ }), 'Source selection control did not restore the source.');
 
-    await page.getByTestId('chat-generate-report').click();
+    await page.getByTestId('chat-skill-trigger').click();
+    await page.getByTestId('chat-skill-option-literature-review').click();
+    await page.getByRole('button', { name: '使用文献综述发送' }).click();
     await expectVisible(page.getByTestId('citation-audit-badge').filter({ hasText: '来源已校验' }), 'Report citation audit badge did not render.');
     await expectVisible(page.getByTestId('retrieval-badge').filter({ hasText: '已匹配证据片段' }), 'Report retrieval badge did not render.');
     await expectVisible(page.getByText('2 个引用来源'), 'Report citation source toggle did not render.');
@@ -402,13 +410,13 @@ async function main() {
     await page.getByTestId('library-paper-studio-evidence-source').click();
     await expectVisible(page.getByTestId('library-source-retry'), 'Transient source failure did not expose a retry action.');
     await page.getByTestId('library-source-retry').click();
-    await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
+    await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源阅读[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
     await expectVisible(page.getByTestId('library-source-citation-leads').filter({ hasText: /引用线索[\s\S]*基于已入库片段/ }), 'Library source citation leads did not render.');
     await expectVisible(page.getByTestId('library-source-citation-lead').filter({ hasText: /线索 1[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source citation lead did not render source evidence.');
     await expectVisible(page.getByTestId('library-source-detail-chunk').filter({ hasText: /第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source detail chunk did not render source text.');
     await page.getByLabel('关闭来源片段').click();
     await page.getByTestId('library-paper-studio-data-source').click();
-    await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Data Source/ }), 'CSV source detail panel did not render.');
+    await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源阅读[\s\S]*Studio Data Source/ }), 'CSV source detail panel did not render.');
     await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /数据速览[\s\S]*4 行[\s\S]*4 列/ }), 'CSV data table preview did not render row and column counts.');
     await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /score[\s\S]*数值列[\s\S]*均值 17\.3/ }), 'CSV data table preview did not render numeric score summary.');
     await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /age[\s\S]*缺失 1/ }), 'CSV data table preview did not render missing-value summary.');
@@ -465,6 +473,13 @@ async function main() {
         report: reportHits(),
       },
     }, null, 2));
+  } catch (error) {
+    if (pageDiagnostics.length > 0) console.error(pageDiagnostics.slice(-20).join('\n'));
+    const bodyText = await page?.locator('body').innerText().catch(() => '');
+    if (bodyText) console.error(`Rendered body:\n${bodyText.slice(0, 3000)}`);
+    const recentOutput = smokeApp?.output?.join('').slice(-12_000);
+    if (recentOutput) console.error(recentOutput);
+    throw error;
   } finally {
     await browser?.close().catch(() => undefined);
     killProcessTree(smokeApp?.child);

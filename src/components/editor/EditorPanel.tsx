@@ -27,6 +27,11 @@ import {
 } from '@/lib/chat-generation-lifecycle';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
+import {
+  getResearchChatSkill,
+  type ResearchChatSkillId,
+} from '@/lib/research-chat-skills';
+import { ResearchChatSkillSelector } from './ResearchChatSkillSelector';
 
 const CHAT_RESPONSE_MAX_TOKENS = 260;
 const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
@@ -34,6 +39,7 @@ const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
 interface SendQuestionOptions {
   appendUserMessage?: boolean;
   assistantMessageId?: string;
+  skill?: ResearchChatSkillId | null;
 }
 
 export function EditorPanel({ compact = false }: { compact?: boolean }) {
@@ -43,6 +49,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
+  const [selectedChatSkill, setSelectedChatSkill] = useState<ResearchChatSkillId | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -124,6 +131,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           notebookId,
           aiConfig,
           maxTokens: CHAT_RESPONSE_MAX_TOKENS,
+          skill: options.skill || undefined,
           papers: selectedPapers.map(p => ({
             id: p.id,
             title: p.title, authors: p.authors, year: p.year,
@@ -234,9 +242,10 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       void sendQuestion(retryTarget.question, {
         appendUserMessage: false,
         assistantMessageId: retryTarget.assistantMessageId,
+        skill: selectedChatSkill,
       });
     }
-  }, [isGenerating, chatMessages, sendQuestion]);
+  }, [isGenerating, chatMessages, selectedChatSkill, sendQuestion]);
 
   useEffect(() => {
     if (!queuedStudioPrompt || isGenerating) return;
@@ -246,7 +255,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   }, [queuedStudioPrompt, isGenerating, consumeStudioPrompt, sendQuestion]);
 
   // Generate report directly in chat
-  const handleGenerateReport = useCallback(async () => {
+  const handleGenerateReport = useCallback(async (customOutline = '') => {
     if (!researchChatReadiness.ready) return;
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
@@ -260,9 +269,11 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     }
     setIsGenerating(true);
 
-    const reportTitle = selectedPapers.length === 1
-      ? `请为《${selectedPapers[0].title}》生成文献综述`
-      : `请为以下 ${selectedPapers.length} 个证据来源生成跨文献综述`;
+    const reportTitle = customOutline.trim()
+      ? `请生成文献综述：${customOutline.trim()}`
+      : selectedPapers.length === 1
+        ? `请为《${selectedPapers[0].title}》生成文献综述`
+        : `请为以下 ${selectedPapers.length} 个证据来源生成跨文献综述`;
 
     const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
     addChatMessage({ id: userMsgId, role: 'user', content: reportTitle, timestamp: new Date().toISOString() });
@@ -281,6 +292,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           aiConfig,
           notebookId,
           papers: paperObjects,
+          customOutline: customOutline.trim() || undefined,
           paperList: paperObjects.map((p) => ({ index: p.index, shortName: p.shortName, title: p.title, authors: p.authors, year: p.year })),
         }),
       });
@@ -354,6 +366,22 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     }
   }, [researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
+  const submitChatDraft = useCallback(() => {
+    const draft = inputMessage.trim();
+    if (selectedChatSkill === 'literature-review') {
+      void handleGenerateReport(draft);
+      setInputMessage('');
+      return;
+    }
+    if (!draft) return;
+    void sendQuestion(draft, { skill: selectedChatSkill });
+    setInputMessage('');
+  }, [handleGenerateReport, inputMessage, selectedChatSkill, sendQuestion]);
+
+  const clearChatSkill = useCallback(() => {
+    setSelectedChatSkill(null);
+  }, []);
+
   const toggleCitation = useCallback((citationId: string) => {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
   }, []);
@@ -394,7 +422,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
             </div>
             <p className="mt-1 truncate text-[11px] text-[var(--text-tertiary)]">
               {selectedSourceCount > 0
-                ? `已选择 ${selectedSourceCount} 个证据来源，可以继续追问研究问题或生成综述。`
+                ? `已选择 ${selectedSourceCount} 个证据来源，可以继续问答或选择 Skill 处理。`
                 : totalSourceCount > 0
                   ? `文献库已有 ${totalSourceCount} 个来源，请先选择要分析的证据来源。`
                   : '先添加文献或实验记录，再围绕证据来源提问。'}
@@ -425,18 +453,6 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
                 </button>
               </>
             )}
-            <button
-              type="button"
-              data-testid="chat-generate-report"
-              onClick={handleGenerateReport}
-              disabled={isGenerating || selectedSourceCount === 0 || !researchChatReadiness.ready}
-              aria-label={!researchChatReadiness.ready ? researchChatReadiness.message : selectedSourceCount > 0 ? '生成文献综述' : '先选择证据来源再生成综述'}
-              title={!researchChatReadiness.ready ? researchChatReadiness.message : selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选证据来源生成综述` : '请先在左侧文献卡片圆点处选择来源'}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-blue-500/20 bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-500 disabled:border-[var(--border-subtle)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:cursor-not-allowed"
-            >
-              {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {selectedSourceCount > 0 ? '生成综述' : '选择来源'}
-            </button>
           </div>
         </div>
       </div>
@@ -448,9 +464,9 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           messages={chatMessages}
           inputMessage={inputMessage}
           setInputMessage={setInputMessage}
-          onSend={() => sendQuestion(inputMessage)}
+          onSend={submitChatDraft}
           onStop={stopGeneration}
-          onQuickQuestion={sendQuestion}
+          onQuickQuestion={(question) => sendQuestion(question, { skill: selectedChatSkill })}
           isGenerating={isGenerating}
           expandedCitations={expandedCitations}
           onToggleCitation={toggleCitation}
@@ -461,6 +477,9 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           researchChatReadiness={researchChatReadiness}
           onCitationClick={revealPaper}
           onRegenerate={regenerateLastAnswer}
+          selectedChatSkill={selectedChatSkill}
+          onSelectChatSkill={setSelectedChatSkill}
+          onClearChatSkill={clearChatSkill}
         />
       </div>
     </div>
@@ -485,9 +504,12 @@ interface ChatViewProps {
   researchChatReadiness: StudioGenerationState;
   onCitationClick: (paperId: string, citation?: Citation) => void;
   onRegenerate: () => void;
+  selectedChatSkill: ResearchChatSkillId | null;
+  onSelectChatSkill: (skillId: ResearchChatSkillId) => void;
+  onClearChatSkill: () => void;
 }
 
-function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate }: ChatViewProps) {
+function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate, selectedChatSkill, onSelectChatSkill, onClearChatSkill }: ChatViewProps) {
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -503,6 +525,10 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   const PULL_THRESHOLD = 80;
   const panelHeightRef = useRef<HTMLDivElement>(null);
   const hasSelectedSources = selectedSourceCount > 0;
+  const activeChatSkill = getResearchChatSkill(selectedChatSkill);
+  const canSubmit = hasSelectedSources
+    && researchChatReadiness.ready
+    && (Boolean(inputMessage.trim()) || activeChatSkill?.allowsEmptyPrompt === true);
   const visibleQuickQuestions = compact ? quickQuestions.slice(0, 4) : quickQuestions;
 
   // Merge scrollRef with scrollAreaRef
@@ -833,9 +859,19 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
             {researchChatReadiness.message}
           </div>
         )}
+        <ResearchChatSkillSelector
+          selectedSkillId={selectedChatSkill}
+          onSelect={onSelectChatSkill}
+          onClear={onClearChatSkill}
+          disabled={isGenerating || !hasSelectedSources || !researchChatReadiness.ready}
+        />
         <div className="max-w-3xl mx-auto flex items-end gap-3">
             <textarea
-              placeholder={!researchChatReadiness.ready ? '文献问答服务配置中...' : hasSelectedSources ? '输入研究问题...(Shift+Enter 换行)' : '先选择左侧证据来源...'}
+              placeholder={!researchChatReadiness.ready
+                ? '文献问答服务配置中...'
+                : hasSelectedSources
+                  ? activeChatSkill?.placeholder || '输入研究问题...(Shift+Enter 换行)'
+                  : '先选择左侧证据来源...'}
               value={inputMessage}
               rows={1}
               onChange={(e) => {
@@ -847,7 +883,6 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   onSend();
-                  setInputMessage('');
                   (e.target as HTMLTextAreaElement).style.height = 'auto';
                 }
               }}
@@ -866,7 +901,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
               <Square className="h-4 w-4 fill-current" />
             </button>
           ) : (
-            <button onClick={() => { onSend(); setInputMessage(''); }} disabled={!hasSelectedSources || !inputMessage.trim() || !researchChatReadiness.ready} aria-label="发送问题" className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed">
+            <button onClick={onSend} disabled={!canSubmit} aria-label={activeChatSkill ? `使用${activeChatSkill.label}发送` : '发送问题'} className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed">
               <Send className="h-4 w-4" />
             </button>
           )}

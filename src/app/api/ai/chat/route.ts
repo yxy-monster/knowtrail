@@ -12,13 +12,15 @@ import {
   resolveStudioGenerationReadiness,
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
+import { resolveResearchChatSkillInstruction } from '@/lib/research-chat-skill-instructions';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, papers, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
+    const { message, papers, mode, skill, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       message?: string;
       papers?: RagSourceInput[];
       mode?: string;
+      skill?: string;
       aiConfig?: Partial<RuntimeAIConfig>;
       maxTokens?: number;
       debugRetrievalOnly?: boolean;
@@ -68,9 +70,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const systemPrompt = mode === 'report'
+    const baseSystemPrompt = mode === 'report'
       ? SYSTEM_PROMPTS.reportGeneration
       : SYSTEM_PROMPTS.academicQA;
+    const skillInstruction = resolveResearchChatSkillInstruction(skill);
+    const systemPrompt = skillInstruction
+      ? `${baseSystemPrompt}\n\n${skillInstruction}`
+      : baseSystemPrompt;
     const modelName = runtimeConfig.model?.trim() || 'doubao-seed-2-0-pro-260215';
     const boundedMaxTokens = Number.isInteger(maxTokens) && typeof maxTokens === 'number'
       ? Math.min(Math.max(maxTokens, 1), 4096)

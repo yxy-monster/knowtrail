@@ -115,9 +115,17 @@ export const STUDIO_RESEARCH_PRODUCTS = [
   },
 ] as const satisfies readonly StudioResearchProduct[];
 
+export const CHAT_SKILL_PRODUCT_IDS = new Set<StudioProductId>([
+  'academic-writing',
+  'text-polishing',
+  'peer-review',
+]);
+
 export function getVisibleStudioCategories() {
   return STUDIO_RESEARCH_CATEGORIES.map(category => ({
     ...category,
-    products: STUDIO_RESEARCH_PRODUCTS.filter(product => product.categoryId === category.id),
+    products: STUDIO_RESEARCH_PRODUCTS
+      .filter(product => !CHAT_SKILL_PRODUCT_IDS.has(product.id))
+      .filter(product => product.categoryId === category.id),
   })).filter(category => category.products.length > 0);
 }

@@ -16,6 +16,7 @@ import {
   Images,
 } from 'lucide-react';
 import {
+  CHAT_SKILL_PRODUCT_IDS,
   getVisibleStudioCategories,
   STUDIO_RESEARCH_PRODUCTS,
   type StudioProductId,
@@ -57,9 +58,10 @@ export function shouldHideVirtualClassroom() {
 }
 
 export function getVisibleStudioNav(hideVirtualClassroom = shouldHideVirtualClassroom()) {
-  return hideVirtualClassroom
-    ? STUDIO_NAV.filter(item => item.id !== 'virtual-classroom')
-    : STUDIO_NAV;
+  return STUDIO_NAV.filter(item => (
+    !CHAT_SKILL_PRODUCT_IDS.has(item.id)
+    && (!hideVirtualClassroom || item.id !== 'virtual-classroom')
+  ));
 }
 
 export function StudioToolSwitcher({

@@ -64,7 +64,8 @@ assert.match(navSection, /<StudioToolSwitcher[\s\S]*activeTab=\{activeTab\}[\s\S
 assert.match(navSection, /getVisibleStudioNav\(hideVirtualClassroom\)/, 'StudioPanel should derive visible navigation from mounted embed state');
 assert.match(switcherSource, /params\.get\('hideVirtualClassroom'\)/, 'Studio visibility should honor the explicit hide flag');
 assert.match(switcherSource, /params\.get\('embed'\) === 'research-agent'/, 'Research-agent embed should hide the duplicate virtual classroom entry');
-assert.match(switcherSource, /STUDIO_NAV\.filter\(item => item\.id !== 'virtual-classroom'\)/, 'Only the virtual classroom product should be filtered');
+assert.match(switcherSource, /!CHAT_SKILL_PRODUCT_IDS\.has\(item\.id\)/, 'Chat-first tools should be filtered from the right product directory');
+assert.match(switcherSource, /item\.id !== 'virtual-classroom'/, 'The embedded workbench should still filter the duplicate virtual classroom product');
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
@@ -184,7 +185,7 @@ assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结
 
 console.log(JSON.stringify({
   ok: true,
-  checked: 'Studio product center exposes scientific illustration and the existing real products without navigation side effects',
-  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', '科研绘图', 'PPT 制作', '论文审查', '虚拟课堂'],
-  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
+  checked: 'The embedded Studio directory keeps focused research tools and moves chat-first tools into the conversation composer',
+  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '科研绘图', 'PPT 制作'],
+  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate'],
 }, null, 2));
