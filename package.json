@@ -111,6 +111,7 @@
     "test:notebook-home-usability": "tsx ./scripts/test-notebook-home-usability.ts",
     "test:notebook-lifecycle": "tsx ./scripts/test-notebook-lifecycle.ts",
     "test:source-intake-usability": "tsx ./scripts/test-source-intake-usability.ts",
+    "test:source-selection-storage": "tsx ./scripts/test-source-selection-storage.ts",
     "test:ppt-v2-outline-draft": "tsx ./scripts/test-ppt-v2-outline-draft.ts",
     "test:ppt-slide-revise-contract": "tsx ./scripts/test-ppt-slide-revise-contract.ts",
     "test:bailian-image-provider": "tsx ./scripts/test-bailian-image-provider.ts",
