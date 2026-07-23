@@ -5,7 +5,16 @@ import { AppProvider } from '@/contexts/AppContext';
 import { ThreeColumnLayout } from '@/components/layout/ThreeColumnLayout';
 import { LibraryPanel } from '@/components/library/LibraryPanel';
 import { EditorPanel } from '@/components/editor/EditorPanel';
-import { StudioPanel } from '@/components/studio/StudioPanel';
+import {
+  ACTIVE_TOOL_STORAGE_KEY,
+  StudioPanel,
+  StudioWorkspacePanel,
+} from '@/components/studio/StudioPanel';
+import {
+  getVisibleStudioNav,
+  shouldHideVirtualClassroom,
+  type StudioTab,
+} from '@/components/studio/StudioToolSwitcher';
 import { WorkbenchTopBar } from '@/components/workbench/WorkbenchTopBar';
 import { VirtualClassroomWorkspace } from '@/components/studio/VirtualClassroomWorkspace';
 import { KnowledgeMapWorkspace } from '@/components/studio/KnowledgeMapWorkspace';
@@ -49,10 +58,27 @@ const FEATURED_SOURCE_COUNTS = Object.fromEntries(
   FEATURED_NOTEBOOKS.map(notebook => [notebook.id, notebook.sourceCount]),
 );
 
-function WorkbenchCenterPanel({ compact }: { compact: boolean }) {
+function WorkbenchCenterPanel({
+  compact,
+  activeStudioTab,
+  onCloseStudioWorkspace,
+}: {
+  compact: boolean;
+  activeStudioTab: StudioTab | null;
+  onCloseStudioWorkspace: () => void;
+}) {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
   if (virtualClassroomViewer) return <VirtualClassroomWorkspace />;
   if (knowledgeMapViewer) return <KnowledgeMapWorkspace />;
+  if (activeStudioTab) {
+    return (
+      <StudioWorkspacePanel
+        compact={compact}
+        activeTab={activeStudioTab}
+        onClose={onCloseStudioWorkspace}
+      />
+    );
+  }
   return <EditorPanel compact={compact} />;
 }
 
@@ -78,11 +104,30 @@ function AcademicPresenterContent({
   templateCopy: boolean;
 }) {
   const quiet = paperHostContext.enabled;
+  const [activeStudioTab, setActiveStudioTab] = useState<StudioTab | null>(null);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
+
+  useEffect(() => {
+    const visibleTools = getVisibleStudioNav(shouldHideVirtualClassroom());
+    const savedTab = window.sessionStorage.getItem(ACTIVE_TOOL_STORAGE_KEY);
+    if (savedTab && visibleTools.some(item => item.id === savedTab)) {
+      setActiveStudioTab(savedTab as StudioTab);
+    }
+  }, []);
+
+  function openStudioWorkspace(tab: StudioTab) {
+    setActiveStudioTab(tab);
+    window.sessionStorage.setItem(ACTIVE_TOOL_STORAGE_KEY, tab);
+  }
+
+  function closeStudioWorkspace() {
+    setActiveStudioTab(null);
+    window.sessionStorage.removeItem(ACTIVE_TOOL_STORAGE_KEY);
+  }
 
   return (
     <div className={`flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg-primary)] ${quiet ? 'quiet-research-workbench' : ''}`}>
@@ -106,12 +151,25 @@ function AcademicPresenterContent({
               onSourceGuideDismiss={onSourceGuideDismiss}
             />
           )}
-          centerPanel={<WorkbenchCenterPanel compact={quiet} />}
-          rightPanel={<StudioPanel compact={quiet} />}
+          centerPanel={(
+            <WorkbenchCenterPanel
+              compact={quiet}
+              activeStudioTab={activeStudioTab}
+              onCloseStudioWorkspace={closeStudioWorkspace}
+            />
+          )}
+          rightPanel={(
+            <StudioPanel
+              compact={quiet}
+              activeTab={activeStudioTab}
+              onSelect={openStudioWorkspace}
+            />
+          )}
           appearance={quiet ? 'quiet-research' : 'glass'}
           defaultLeftWidth={quiet ? 272 : 280}
           defaultRightWidth={quiet ? 420 : 500}
           initialMobilePanel={showSourceGuide ? 'left' : 'center'}
+          centerFocusKey={activeStudioTab}
         />
       </div>
     </div>

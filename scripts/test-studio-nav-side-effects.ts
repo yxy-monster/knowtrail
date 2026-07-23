@@ -7,6 +7,7 @@ function read(relativePath: string) {
 }
 
 const studioPanelSource = read('src/components/studio/StudioPanel.tsx');
+const pageSource = read('src/app/page.tsx');
 const switcherSource = read('src/components/studio/StudioToolSwitcher.tsx');
 const presentationPanelSource = read('src/components/studio/PresentationPanels.tsx');
 const structuredPresentationPanelSource = read('src/components/studio/StructuredPresentationPanel.tsx');
@@ -59,7 +60,7 @@ assert.ok(studioPanelStart >= 0, 'StudioPanel export not found');
 assert.ok(panelContentStart > studioPanelStart, 'StudioPanel content switch not found');
 
 const navSection = studioPanelSource.slice(studioPanelStart, panelContentStart);
-assert.match(navSection, /<StudioToolSwitcher compact=\{compact\} activeTab=\{activeTab\} onSelect=\{openWorkspace\} navItems=\{visibleNavItems\} \/>/, 'StudioPanel should open the selected tool in a focused workspace');
+assert.match(navSection, /<StudioToolSwitcher[\s\S]*activeTab=\{activeTab\}[\s\S]*onSelect=\{onSelect\}[\s\S]*navItems=\{visibleNavItems\}/, 'StudioPanel should remain a side-effect-free tool directory');
 assert.match(navSection, /getVisibleStudioNav\(hideVirtualClassroom\)/, 'StudioPanel should derive visible navigation from mounted embed state');
 assert.match(switcherSource, /params\.get\('hideVirtualClassroom'\)/, 'Studio visibility should honor the explicit hide flag');
 assert.match(switcherSource, /params\.get\('embed'\) === 'research-agent'/, 'Research-agent embed should hide the duplicate virtual classroom entry');
@@ -67,15 +68,12 @@ assert.match(switcherSource, /STUDIO_NAV\.filter\(item => item\.id !== 'virtual-
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
-assert.match(studioPanelSource, /type StudioView = 'directory' \| 'workspace'/, 'Studio should model its directory and focused workspace as separate views');
-assert.match(studioPanelSource, /const \[studioView, setStudioView\] = useState<StudioView>\('directory'\)/, 'Studio should start from the product directory');
-assert.match(studioPanelSource, /function openWorkspace\(tab: StudioTab\)/, 'Studio should expose one side-effect-free tool opening action');
-assert.match(studioPanelSource, /function returnToDirectory\(\)/, 'Studio should expose an immediate return to the directory');
-assert.match(studioPanelSource, /sessionStorage\.setItem\(ACTIVE_TOOL_STORAGE_KEY, tab\)/, 'Studio should preserve the active tool across refresh');
-assert.match(studioPanelSource, /studioView === 'directory'/, 'Studio should render the tool directory independently');
-assert.match(studioPanelSource, /studioView === 'workspace'/, 'Studio should render the focused workspace independently');
-assert.match(studioPanelSource, /data-testid="studio-back-to-directory"/, 'Focused workspaces should provide a stable return action');
-assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?<span>全部工具<\/span>/, 'Focused workspaces should label the return action without relying on an icon alone');
+assert.match(pageSource, /function openStudioWorkspace\(tab: StudioTab\)/, 'Workbench should expose one side-effect-free tool opening action');
+assert.match(pageSource, /function closeStudioWorkspace\(\)/, 'Workbench should expose an immediate return to document chat');
+assert.match(pageSource, /sessionStorage\.setItem\(ACTIVE_TOOL_STORAGE_KEY, tab\)/, 'Workbench should preserve the active tool across refresh');
+assert.match(studioPanelSource, /export function StudioWorkspacePanel/, 'Studio should expose the focused workspace independently from the right directory');
+assert.match(studioPanelSource, /data-testid="studio-back-to-chat"/, 'Focused workspaces should provide a stable return action');
+assert.match(studioPanelSource, /data-testid="studio-back-to-chat"[\s\S]*?<span>返回文献问答<\/span>/, 'Focused workspaces should label the return destination without relying on an icon alone');
 assert.match(studioPanelSource, /data-testid="studio-directory-scroll"/, 'The product directory should own its scrolling');
 assert.match(studioPanelSource, /data-testid="studio-workspace-scroll"/, 'The focused workspace should own its scrolling');
 assert.doesNotMatch(studioPanelSource, /切换入口只打开对应工作区，检索或生成需在下方明确操作。/, 'Studio should not describe the removed appended-workspace interaction');

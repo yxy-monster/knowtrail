@@ -68,7 +68,7 @@ export function StudioToolSwitcher({
   navItems = getVisibleStudioNav(),
   compact = false,
 }: {
-  activeTab: StudioTab;
+  activeTab: StudioTab | null;
   onSelect: (tab: StudioTab) => void;
   navItems?: StudioNavItem[];
   compact?: boolean;

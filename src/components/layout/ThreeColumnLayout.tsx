@@ -11,6 +11,7 @@ interface ThreeColumnLayoutProps {
   defaultRightWidth?: number;
   initialMobilePanel?: 'left' | 'center' | 'right';
   appearance?: 'glass' | 'quiet-research';
+  centerFocusKey?: string | null;
 }
 
 const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
@@ -42,6 +43,7 @@ export function ThreeColumnLayout({
   defaultRightWidth = 440,
   initialMobilePanel = 'center',
   appearance = 'glass',
+  centerFocusKey = null,
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widthsStorageKey = appearance === 'quiet-research'
@@ -129,6 +131,10 @@ export function ThreeColumnLayout({
   useEffect(() => {
     setMobilePanel(initialMobilePanel);
   }, [initialMobilePanel]);
+
+  useEffect(() => {
+    if (centerFocusKey) setMobilePanel('center');
+  }, [centerFocusKey]);
 
   useEffect(() => {
     try {
