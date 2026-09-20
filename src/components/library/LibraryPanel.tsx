@@ -21,6 +21,8 @@ import {
   Globe2,
   Loader2,
   MoreHorizontal,
+  Quote,
+  FileDown,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { CitationReveal } from '@/contexts/AppContext';
@@ -36,6 +38,8 @@ import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
+import type { CitationStyle, LiteratureResult } from '@/lib/literature/types';
+import { LiteratureSearchDialog } from '@/components/literature/LiteratureSearchDialog';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -377,6 +381,8 @@ export function LibraryPanel({
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
   const [sourcePreviewFocus, setSourcePreviewFocus] = useState<SourceMatrixPreviewFocus | null>(null);
   const [isSourceMatrixOpen, setIsSourceMatrixOpen] = useState(false);
+  const [citationMenu, setCitationMenu] = useState(false);
+  const [showLiteratureSearch, setShowLiteratureSearch] = useState(false);
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -846,7 +852,92 @@ export function LibraryPanel({
   const handleContextMenu = useCallback((e: React.MouseEvent, paper: Paper) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, paper });
+    setCitationMenu(false);
   }, []);
+
+
+  const paperToCitationPaper = useCallback((paper: Paper) => ({
+    title: paper.title,
+    authors: paper.authors.map(name => ({ name })),
+    year: paper.year,
+    doi: paper.doi,
+    venue: paper.journal,
+    url: paper.fileUrl,
+  }), []);
+
+  const copyCitation = useCallback(async (paper: Paper, style: CitationStyle) => {
+    try {
+      const res = await fetch('/api/literature/cite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ papers: [paperToCitationPaper(paper)], style }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.citations?.[0]) {
+          await navigator.clipboard.writeText(data.citations[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to copy citation:', err);
+    }
+    setContextMenu(null);
+    setCitationMenu(false);
+  }, [paperToCitationPaper]);
+
+  const exportBibtex = useCallback((paper: Paper) => {
+    const cp = paperToCitationPaper(paper);
+    const firstAuthor = cp.authors[0]?.name.split(/\s+/).pop() || 'unknown';
+    const titleWord = cp.title.split(/\s+/)[0]?.replace(/[^a-zA-Z0-9]/g, '') || 'paper';
+    const key = `${firstAuthor.toLowerCase()}${cp.year}${titleWord.toLowerCase()}`;
+    const lines = [`@article{${key},`];
+    lines.push(`  title = {${cp.title}},`);
+    lines.push(`  author = {${cp.authors.map(a => a.name).join(' and ')}},`);
+    lines.push(`  year = {${cp.year}},`);
+    if (cp.venue) lines.push(`  journal = {${cp.venue}},`);
+    if (cp.doi) lines.push(`  doi = {${cp.doi}},`);
+    lines.push('}');
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${key}.bib`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setContextMenu(null);
+    setCitationMenu(false);
+  }, [paperToCitationPaper]);
+
+  const handleLiteratureImport = useCallback((result: LiteratureResult) => {
+    let importFolderId = activeFolderId || folders[0]?.id || null;
+    if (!importFolderId) {
+      importFolderId = addFolder('文献库');
+      setExpandedFolders(prev => new Set([...prev, importFolderId!]));
+      setActiveFolder(importFolderId);
+    }
+    const firstAuthor = result.authors[0]?.name.split(/\s+/).pop() || 'Unknown';
+    const year = typeof result.year === 'number' ? result.year : parseInt(result.year) || 2024;
+    const newPaper: Paper = {
+      id: `paper_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      title: result.title,
+      authors: result.authors.map(a => a.name),
+      year,
+      keywords: [],
+      abstract: result.abstract,
+      content: result.abstract || '',
+      shortName: `[${firstAuthor}. ${year}]`,
+      fileName: result.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').slice(0, 50) + '.pdf',
+      fileType: 'pdf',
+      fileSize: 0,
+      uploadTime: new Date().toISOString(),
+      journal: result.venue,
+      doi: result.doi,
+      fileUrl: result.url,
+      mineruFigures: [],
+    };
+    addPaper(importFolderId, newPaper);
+    setShowLiteratureSearch(false);
+  }, [activeFolderId, addPaper, folders, addFolder, setExpandedFolders, setActiveFolder]);
 
   const filteredFolders = folders.map(folder => ({
     ...folder,
@@ -900,6 +991,15 @@ export function LibraryPanel({
             >
               <Globe2 className="h-3.5 w-3.5 text-blue-400" />
               发现信源
+            </button>
+            <button
+              onClick={() => setShowLiteratureSearch(true)}
+              className="flex h-8 items-center gap-1.5 rounded-xl liquid-glass-btn px-2.5 !py-0 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              aria-label="搜索学术文献"
+              title="搜索学术文献并导入"
+            >
+              <Globe2 className="h-3.5 w-3.5 text-emerald-400" />
+              文献搜索
             </button>
             <button
               onClick={() => setIsCreatingFolder(true)}
@@ -1624,6 +1724,13 @@ export function LibraryPanel({
         </div>
       )}
 
+      {/* Literature search dialog */}
+      <LiteratureSearchDialog
+        open={showLiteratureSearch}
+        onOpenChange={setShowLiteratureSearch}
+        onImport={handleLiteratureImport}
+      />
+
       {/* Context menu */}
       {contextMenu && (
         <div
@@ -1650,7 +1757,45 @@ export function LibraryPanel({
             <FileText className="h-3.5 w-3.5 text-blue-400" />
             查看来源片段
           </button>
-          <div className="h-px bg-[var(--border-subtle)] my-1" />
+          {!citationMenu ? (
+            <>
+              <button
+                onClick={() => setCitationMenu(true)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
+              >
+                <Quote className="h-3.5 w-3.5 text-zinc-500" />
+                复制引用
+              </button>
+              <button
+                onClick={() => exportBibtex(contextMenu.paper)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
+              >
+                <FileDown className="h-3.5 w-3.5 text-zinc-500" />
+                导出 BibTeX
+              </button>
+              <div className="h-px bg-[var(--border-subtle)] my-1" />
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setCitationMenu(false)}
+                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[10px] text-zinc-500 hover:bg-[var(--glass-hover)] transition-colors"
+              >
+                ← 返回
+              </button>
+              {(['GB/T 7714', 'apa', 'mla', 'chicago', 'ieee', 'bibtex'] as CitationStyle[]).map(style => (
+                <button
+                  key={style}
+                  onClick={() => copyCitation(contextMenu.paper, style)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
+                >
+                  <Quote className="h-3.5 w-3.5 text-zinc-500" />
+                  {style === 'GB/T 7714' ? 'GB/T 7714' : style.toUpperCase()}
+                </button>
+              ))}
+              <div className="h-px bg-[var(--border-subtle)] my-1" />
+            </>
+          )}
           <button
             data-testid="library-remove-paper"
             onClick={() => {
