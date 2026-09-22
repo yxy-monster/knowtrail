@@ -1,5 +1,9 @@
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
+import { literatureEntryKey, sameLiteratureEntry } from '@/lib/literature/library';
+import type { LiteratureMetadata } from '@/lib/literature/types';
+import { normalizeNotebookId } from '@/lib/notebook-scope';
 import { embedTexts } from '@/lib/ai-service';
 import { upsertSourceChunks } from '@/lib/vector-store';
 import { hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
@@ -137,12 +141,12 @@ function sourceMatchesIdentities(source: StoredSourceRecord, identities: Set<str
 }
 
 function sourceMatchesOwner(source: StoredSourceRecord, ownerMemberId?: string): boolean {
-  if (!ownerMemberId) return true;
+  if (!ownerMemberId) return !source.literature;
   return source.ownerMemberId === ownerMemberId;
 }
 
 function sourceMatchesNotebook(source: StoredSourceRecord, notebookId?: string): boolean {
-  if (!notebookId) return true;
+  if (!notebookId) return !source.literature;
   return (source.notebookId || 'default-workspace') === notebookId;
 }
 
@@ -304,6 +308,7 @@ export function buildSourceStoreFromPostgresRows(input: {
       id: row.id || payload.id || '',
       ownerMemberId: payload.ownerMemberId,
       notebookId: payload.notebookId,
+      literature: payload.literature,
       fileName: row.file_name || payload.fileName || 'unknown',
       fileType: row.file_type || payload.fileType || 'unknown',
       fileSize: optionalNumber(row.file_size) ?? payload.fileSize,
@@ -451,6 +456,7 @@ class PostgresSourceStoreAdapter implements SourceStoreAdapter {
         ${identityFilter}
         ${ownerFilter}
         ${notebookFilter}
+        ${scope.ownerMemberId && scope.notebookId ? '' : "AND s.payload->>'literature' IS NULL"}
         AND EXISTS (
           SELECT 1 FROM ${POSTGRES_CHUNKS_TABLE} c
           WHERE c.source_id = s.id
@@ -752,6 +758,7 @@ function sourceInputForChunks(input: IngestionSourceInput): RagSourceInput {
     shortName: input.shortName,
     fileName: input.fileName,
     fileType: input.fileType,
+    literature: input.literature,
   };
 }
 
@@ -761,6 +768,7 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
     id: input.id,
     ownerMemberId: input.ownerMemberId,
     notebookId: input.notebookId,
+    literature: input.literature,
     fileName: input.fileName,
     fileType: input.fileType,
     fileSize: input.fileSize,
@@ -780,6 +788,73 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
       updatedAt: timestamp,
     },
   };
+}
+
+/** Persist search metadata and, if present, abstract-only evidence. No download or embedding. */
+export async function importLiteratureSource(
+  literature: LiteratureMetadata,
+  scope: { ownerMemberId: string; notebookId: string },
+): Promise<{ source: StoredSourceRecord; alreadyExists: boolean }> {
+  const ownerMemberId = scope.ownerMemberId;
+  const notebookId = normalizeNotebookId(scope.notebookId);
+  if (!ownerMemberId?.trim() || !notebookId || !literature.title.trim()) {
+    throw new Error('Literature imports require an owner, notebook and title');
+  }
+  const abstract = literature.abstract.trim();
+  // Whitelist real bibliographic fields; never persist caller-supplied full text.
+  const metadata: LiteratureMetadata = {
+    title: literature.title.trim(),
+    authors: literature.authors.map(author => ({ name: author.name })),
+    year: literature.year,
+    doi: literature.doi,
+    arxivId: literature.arxivId,
+    abstract,
+    venue: literature.venue,
+    url: literature.url,
+    source: literature.source,
+    provider: literature.provider,
+    evidenceScope: abstract ? 'abstract' : 'metadata',
+    retrievedAt: literature.retrievedAt,
+  };
+  let result: { source: StoredSourceRecord; alreadyExists: boolean } | undefined;
+  await getSourceStoreAdapter().mutate(store => {
+    const existing = store.sources.find(source => (
+      source.ownerMemberId === ownerMemberId &&
+      source.notebookId === notebookId &&
+      source.literature && sameLiteratureEntry(source.literature, metadata)
+    ));
+    if (existing) {
+      result = { source: existing, alreadyExists: true };
+      return store;
+    }
+
+    const identity = literatureEntryKey(metadata);
+    const id = `lit-${createHash('sha256').update(JSON.stringify([ownerMemberId, notebookId, identity])).digest('hex')}`;
+    const shortName = `${metadata.authors[0]?.name || '未知作者'}. ${metadata.year || '?'}`;
+    const source = createRecord({
+      id, ownerMemberId, notebookId,
+      fileName: metadata.title,
+      fileType: 'other',
+      title: metadata.title,
+      shortName,
+      literature: metadata,
+    });
+    source.chunks = abstract ? buildSourceChunks([{
+      id, title: metadata.title, abstract, shortName, literature: metadata,
+    }]) : [];
+    source.chunkCount = source.chunks.length;
+    source.tokenEstimate = source.chunks.reduce((sum, chunk) => sum + chunk.tokenEstimate, 0);
+    source.status = 'succeeded';
+    source.stages = source.stages.filter(stage => ['store', 'normalize', 'chunk'].includes(stage.name));
+    for (const stage of ['store', 'normalize', 'chunk'] as const) {
+      source.stages = setStage(source.stages, stage, 'succeeded');
+    }
+    source.updatedAt = nowIso();
+    result = { source, alreadyExists: false };
+    return { ...store, sources: [...store.sources, source].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) };
+  });
+  if (!result) throw new Error('Literature import did not complete');
+  return result;
 }
 
 export async function ingestExtractedSource(

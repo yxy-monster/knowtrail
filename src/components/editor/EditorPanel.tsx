@@ -129,6 +129,7 @@ export function EditorPanel() {
             title: p.title, authors: p.authors, year: p.year,
             abstract: p.abstract, content: p.content, rawContent: p.rawContent, shortName: p.shortName,
             fileName: p.fileName, fileType: p.fileType,
+            literature: p.literature,
           })),
         }),
       });
@@ -272,6 +273,7 @@ export function EditorPanel() {
         index: i + 1, id: p.id, title: p.title, authors: p.authors, year: p.year,
         abstract: p.abstract, content: p.content, rawContent: p.rawContent,
         shortName: p.shortName, keywords: p.keywords, fileName: p.fileName, fileType: p.fileType,
+        literature: p.literature,
       }));
 
       const response = await fetch('/api/ai/report', {

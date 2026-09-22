@@ -21,6 +21,7 @@ import {
   Globe2,
   Loader2,
   MoreHorizontal,
+  BookOpen,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { CitationReveal } from '@/contexts/AppContext';
@@ -36,6 +37,8 @@ import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
+import { LiteratureSearchDialog } from '@/components/literature/LiteratureSearchDialog';
+import type { LiteratureResult, LiteratureMetadata } from '@/lib/literature/types';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -128,6 +131,7 @@ interface UploadItem {
 
 interface IngestionSourceSummary {
   id: string;
+  literature?: LiteratureMetadata;
   fileName: string;
   fileType: FileType;
   fileSize?: number;
@@ -156,6 +160,34 @@ interface IngestionSourceDetail extends IngestionSourceSummary {
     paperShortName?: string;
     sourceTitle?: string;
   }>;
+}
+
+function paperFromLiteratureSource(source: IngestionSourceSummary): Paper | null {
+  const literature = source.literature;
+  if (!literature) return null;
+  const year = Number(literature.year);
+  return {
+    id: source.id,
+    title: literature.title,
+    authors: literature.authors.map(author => author.name),
+    year: Number.isFinite(year) && year > 0 ? year : 0,
+    journal: literature.venue,
+    doi: literature.doi,
+    abstract: literature.abstract,
+    content: literature.abstract || '仅题录，尚无摘要或全文。',
+    rawContent: literature.abstract,
+    keywords: [literature.provider],
+    shortName: source.shortName || `${literature.authors[0]?.name || '未知作者'} ${literature.year || '年份未知'}`,
+    fileName: source.fileName,
+    fileType: source.fileType,
+    fileSize: source.fileSize || 0,
+    uploadTime: source.createdAt || source.updatedAt,
+    ingestionStatus: source.status,
+    ingestionStages: source.stages,
+    ingestionChunkCount: source.chunkCount,
+    vectorIndex: source.vectorIndex,
+    literature,
+  };
 }
 
 interface CitationContextSnippet {
@@ -328,6 +360,7 @@ function sourceSortTime(paper: Paper): number {
 }
 
 export function LibraryPanel({
+  workspaceTitle,
   accountSession,
   accountAuthRequired = false,
   showSourceGuide = false,
@@ -372,6 +405,7 @@ export function LibraryPanel({
   const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
+  const [isLiteratureSearchOpen, setIsLiteratureSearchOpen] = useState(false);
   const [pastedSourceText, setPastedSourceText] = useState('');
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
@@ -381,6 +415,20 @@ export function LibraryPanel({
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const resolvedUploadTarget = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
+  const libraryGenerationRef = useRef(0);
+  const literatureImportInFlightRef = useRef(false);
+  const foldersRef = useRef(folders);
+  const knownPaperIdsRef = useRef(new Set(folders.flatMap(folder => folder.papers.map(paper => paper.id))));
+
+  useEffect(() => {
+    foldersRef.current = folders;
+    knownPaperIdsRef.current = new Set(folders.flatMap(folder => folder.papers.map(paper => paper.id)));
+  }, [folders]);
+
+  useEffect(() => {
+    libraryGenerationRef.current += 1;
+    return () => { libraryGenerationRef.current += 1; };
+  }, [storageScopeKey, accountSession?.token]);
 
   useEffect(() => {
     if (resolveLibraryUploadTarget(uploadTargetFolderId, folders)) return;
@@ -469,9 +517,10 @@ export function LibraryPanel({
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) return;
     const now = Date.now();
-    if (ingestionSyncInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
+    if (ingestionSyncInFlightRef.current || literatureImportInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
     ingestionSyncInFlightRef.current = true;
     lastIngestionSyncAtRef.current = now;
+    const generation = libraryGenerationRef.current;
     const knownPapers = new Map<string, Paper>();
     folders.forEach(folder => folder.papers.forEach(paper => knownPapers.set(paper.id, paper)));
 
@@ -484,7 +533,9 @@ export function LibraryPanel({
       });
       if (!response.ok) throw new Error('ingestion sources request failed');
       const data = await response.json() as { sources?: IngestionSourceSummary[] };
+      if (generation !== libraryGenerationRef.current) return;
       const sources = data.sources || [];
+      foldersRef.current.forEach(folder => folder.papers.forEach(paper => knownPapers.set(paper.id, paper)));
 
       const missingSources = sources.filter(source => !knownPapers.has(source.id));
       let importFolderId = activeFolderId || folders[0]?.id || null;
@@ -495,7 +546,16 @@ export function LibraryPanel({
       }
 
       for (const source of missingSources) {
-        if (!importFolderId) continue;
+        if (generation !== libraryGenerationRef.current) return;
+        if (!importFolderId || knownPaperIdsRef.current.has(source.id)) continue;
+        if (source.literature && literatureImportInFlightRef.current) continue;
+        const literaturePaper = paperFromLiteratureSource(source);
+        if (literaturePaper) {
+          knownPaperIdsRef.current.add(source.id);
+          addPaper(importFolderId, literaturePaper);
+          knownPapers.set(source.id, literaturePaper);
+          continue;
+        }
         const detailParams = new URLSearchParams({ id: source.id });
         if (notebookId) detailParams.set('notebookId', notebookId);
         const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
@@ -504,6 +564,7 @@ export function LibraryPanel({
         });
         if (!detailResponse.ok) continue;
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
+        if (generation !== libraryGenerationRef.current) return;
         const detail = detailData.source;
         if (!detail) continue;
         const rawContent = (detail.chunks || [])
@@ -806,6 +867,34 @@ export function LibraryPanel({
     return outcome.papers.length;
   }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
+  const handleAddLiterature = useCallback(async (result: LiteratureResult) => {
+    if (!accountSession) throw new Error('请先登录账号，再添加文献。');
+    if (!notebookId) throw new Error('请先打开一个文献本。');
+    if (literatureImportInFlightRef.current) throw new Error('正在添加文献，请稍候。');
+    const generation = libraryGenerationRef.current;
+    const targetFolder = ensureUploadTarget();
+    literatureImportInFlightRef.current = true;
+    try {
+      const response = await fetch('/api/literature/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({ resultToken: result.resultId, notebookId }),
+      });
+      const data = await response.json() as { source?: IngestionSourceDetail; error?: string };
+      if (!response.ok) throw new Error(data.error || '添加失败，请重试。');
+      if (generation !== libraryGenerationRef.current) throw new Error('文献本已切换，请在原文献本查看添加结果。');
+      const paper = data.source && paperFromLiteratureSource(data.source);
+      if (!paper) throw new Error('入库服务未返回完整文献记录，请重试。');
+      if (!knownPaperIdsRef.current.has(paper.id)) {
+        knownPaperIdsRef.current.add(paper.id);
+        addPaper(targetFolder, paper);
+      }
+      setExpandedFolders(prev => new Set([...prev, targetFolder]));
+    } finally {
+      literatureImportInFlightRef.current = false;
+    }
+  }, [accountSession, notebookId, ensureUploadTarget, addPaper]);
+
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -891,6 +980,16 @@ export function LibraryPanel({
             </p>
           </div>
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setIsLiteratureSearchOpen(true)}
+              data-testid="library-literature-search"
+              className="flex h-8 items-center gap-1.5 rounded-xl liquid-glass-btn px-2.5 !py-0 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              aria-label="文献检索"
+              title="从学术数据库搜索文献"
+            >
+              <BookOpen className="h-3.5 w-3.5 text-purple-400" />
+              文献检索
+            </button>
             <button
               onClick={() => setIsDiscoverOpen(true)}
               data-testid="library-discover"
@@ -1093,9 +1192,14 @@ export function LibraryPanel({
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] truncate font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-[11px] text-[var(--text-secondary)] mt-1 truncate">
-                          {paper.authors.join(', ')} · {paper.year}
+                          {paper.authors.join(', ') || '未知作者'} · {paper.literature ? paper.literature.year || '年份未知' : paper.year}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {paper.literature && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: '#1d4ed8', backgroundColor: '#eff6ff' }}>
+                              {paper.literature.evidenceScope === 'metadata' ? '仅题录' : paper.literature.evidenceScope === 'abstract' ? '仅摘要' : '全文'}
+                            </span>
+                          )}
                           <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${fileTypeBadgeStyle(paper.fileType)}`}>
                             {paper.fileType.toUpperCase()}
                           </span>
@@ -1272,6 +1376,17 @@ export function LibraryPanel({
           onIngestFiles={handleIngestDiscoveredFiles}
         />
       )}
+
+      {/* Literature search dialog */}
+      <LiteratureSearchDialog
+        key={storageScopeKey}
+        open={isLiteratureSearchOpen}
+        onOpenChange={setIsLiteratureSearchOpen}
+        onAddToLibrary={handleAddLiterature}
+        existingLiterature={folders.flatMap(folder => folder.papers.flatMap(paper => paper.literature ? [paper.literature] : []))}
+        targetLabel={`${workspaceTitle || '当前文献本'} / ${folders.find(folder => folder.id === (resolvedUploadTarget || activeFolderId))?.name || '文献库（首次添加创建）'}`}
+        addDisabledReason={!accountSession ? '登录后可添加文献。' : !notebookId ? '请先打开一个文献本。' : undefined}
+      />
 
       {/* Create folder dialog */}
       {isCreatingFolder && (
@@ -1456,6 +1571,20 @@ export function LibraryPanel({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+              {sourcePreview.paper.literature && (
+                <div className="mb-3 space-y-2 rounded-lg border p-3 text-xs" style={{ color: '#334155', backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}>
+                  <p>{sourcePreview.paper.authors.join(', ') || '未知作者'} · {sourcePreview.paper.literature.year || '年份未知'}</p>
+                  {sourcePreview.paper.literature.venue && <p>{sourcePreview.paper.literature.venue}</p>}
+                  {sourcePreview.paper.literature.doi && <p className="break-all">DOI：{sourcePreview.paper.literature.doi}</p>}
+                  <p>{sourcePreview.paper.literature.evidenceScope === 'metadata' ? '仅题录：已收藏，尚无摘要或全文，不作为正文证据。' : '仅摘要：未获取全文，以下内容不能替代阅读全文。'}</p>
+                  {sourcePreview.paper.literature.abstract && <p className="whitespace-pre-wrap">{sourcePreview.paper.literature.abstract}</p>}
+                  {sourcePreview.paper.literature.url && (
+                    <a href={sourcePreview.paper.literature.url} target="_blank" rel="noopener noreferrer" className="inline-block underline" style={{ color: '#1d4ed8' }}>
+                      打开原文链接
+                    </a>
+                  )}
+                </div>
+              )}
               {sourcePreview.status === 'loading' && (
                 <div className="flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3 text-xs text-blue-200">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1477,6 +1606,7 @@ export function LibraryPanel({
                   .filter(chunk => Boolean(chunk.text?.trim()))
                   .slice(0, 12);
                 const dataPreview = buildSourceDataPreview(sourcePreview.paper, sourcePreview.source);
+                if (chunks.length === 0 && sourcePreview.paper.literature?.evidenceScope === 'metadata') return null;
                 if (chunks.length === 0 && !dataPreview) {
                   return (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
