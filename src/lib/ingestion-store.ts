@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
+import { fetchFullText, FullTextError } from '@/lib/literature/fulltext';
 import { literatureEntryKey, sameLiteratureEntry } from '@/lib/literature/library';
 import type { LiteratureMetadata } from '@/lib/literature/types';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
@@ -854,6 +855,43 @@ export async function importLiteratureSource(
     return { ...store, sources: [...store.sources, source].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) };
   });
   if (!result) throw new Error('Literature import did not complete');
+
+  if (!result.alreadyExists && metadata.doi) {
+    try {
+      const fullTextResult = await fetchFullText(metadata.doi);
+      if (fullTextResult.fullText?.trim()) {
+        await getSourceStoreAdapter().mutate(store => {
+          const source = store.sources.find(s => s.id === result!.source.id);
+          if (!source) return store;
+
+          source.literature = {
+            ...source.literature!,
+            evidenceScope: 'fulltext',
+          };
+
+          const shortName = `${metadata.authors[0]?.name || '未知作者'}. ${metadata.year || '?'}`;
+          source.chunks = buildSourceChunks([{
+            id: source.id,
+            title: metadata.title,
+            abstract,
+            rawContent: fullTextResult.fullText,
+            shortName,
+            literature: { evidenceScope: 'fulltext' },
+          }]);
+          source.chunkCount = source.chunks.length;
+          source.tokenEstimate = source.chunks.reduce((sum, chunk) => sum + chunk.tokenEstimate, 0);
+          source.updatedAt = nowIso();
+
+          result = { source, alreadyExists: false };
+          return store;
+        });
+      }
+    } catch (error) {
+      const errMsg = error instanceof FullTextError ? `${error.code}: ${error.message}` : String(error);
+      console.warn(`[importLiteratureSource] Full text fetch failed for DOI ${metadata.doi}: ${errMsg}`);
+    }
+  }
+
   return result;
 }
 
