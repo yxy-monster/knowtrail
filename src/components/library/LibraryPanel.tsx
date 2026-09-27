@@ -922,7 +922,7 @@ export function LibraryPanel({
   }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
   const handleAddLiterature = useCallback(async (result: LiteratureResult): Promise<LiteratureImportFeedback> => {
-    if (!accountSession) throw new Error('请先登录账号，再添加文献。');
+    if (accountAuthRequired && !accountSession) throw new Error('请先登录账号，再添加文献。');
     if (!notebookId) throw new Error('请先打开一个文献本。');
     if (literatureImportInFlightRef.current) throw new Error('正在获取全文，请稍候。');
     const generation = libraryGenerationRef.current;
@@ -959,7 +959,7 @@ export function LibraryPanel({
     } finally {
       literatureImportInFlightRef.current = false;
     }
-  }, [accountSession, notebookId, ensureUploadTarget, addPaper, updatePaper]);
+  }, [accountAuthRequired, accountSession, notebookId, ensureUploadTarget, addPaper, updatePaper]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -1454,7 +1454,7 @@ export function LibraryPanel({
         onAddToLibrary={handleAddLiterature}
         existingLiterature={folders.flatMap(folder => folder.papers.flatMap(paper => paper.literature ? [paper.literature] : []))}
         targetLabel={`${workspaceTitle || '当前文献本'} / ${folders.find(folder => folder.id === (resolvedUploadTarget || activeFolderId))?.name || '文献库（首次添加创建）'}`}
-        addDisabledReason={!accountSession ? '登录后可添加文献。' : !notebookId ? '请先打开一个文献本。' : undefined}
+        addDisabledReason={(accountAuthRequired && !accountSession) ? '登录后可添加文献。' : !notebookId ? '请先打开一个文献本。' : undefined}
       />
 
       {/* Create folder dialog */}
