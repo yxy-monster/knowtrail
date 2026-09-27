@@ -12,7 +12,9 @@ interface ThreeColumnLayoutProps {
   initialMobilePanel?: 'left' | 'center' | 'right';
 }
 
-const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
+const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths-v2';
+const MIN_PANEL = 200;
+const DIVIDER_WIDTH = 5;
 
 function readStoredWidths(): { left?: number; right?: number } {
   if (typeof window === 'undefined') return {};
@@ -27,45 +29,74 @@ export function ThreeColumnLayout({
   leftPanel,
   centerPanel,
   rightPanel,
-  defaultLeftWidth = 280,
-  defaultRightWidth = 440,
+  defaultLeftWidth,
+  defaultRightWidth,
   initialMobilePanel = 'center',
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [leftWidth, setLeftWidth] = useState(() => {
-    const stored = readStoredWidths().left;
-    return stored && stored >= 220 && stored <= 450 ? stored : defaultLeftWidth;
-  });
-  const [rightWidth, setRightWidth] = useState(() => {
-    const stored = readStoredWidths().right;
-    return stored && stored >= 360 && stored <= 680 ? stored : defaultRightWidth;
-  });
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+  const [leftWidth, setLeftWidth] = useState(0);
+  const [rightWidth, setRightWidth] = useState(0);
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
+  const startLeftRef = useRef(0);
+  const startRightRef = useRef(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (containerWidth <= 0 || initialized) return;
+    const stored = readStoredWidths();
+    const available = containerWidth - DIVIDER_WIDTH * 2;
+    const third = Math.floor(available / 3);
+
+    const left = stored.left && stored.left >= MIN_PANEL ? stored.left : (defaultLeftWidth ?? third);
+    const right = stored.right && stored.right >= MIN_PANEL ? stored.right : (defaultRightWidth ?? third);
+    const maxSide = Math.max(MIN_PANEL, available - MIN_PANEL);
+
+    setLeftWidth(Math.min(left, maxSide));
+    setRightWidth(Math.min(right, maxSide));
+    setInitialized(true);
+  }, [containerWidth, initialized, defaultLeftWidth, defaultRightWidth]);
+
+  const centerWidth = Math.max(0, containerWidth - leftWidth - rightWidth - DIVIDER_WIDTH * 2);
 
   const handleMouseDown = useCallback((side: 'left' | 'right', e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(side);
     startXRef.current = e.clientX;
-    startWidthRef.current = side === 'left' ? leftWidth : rightWidth;
+    startLeftRef.current = leftWidth;
+    startRightRef.current = rightWidth;
   }, [leftWidth, rightWidth]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragging) return;
     const delta = e.clientX - startXRef.current;
+    const available = containerWidth - DIVIDER_WIDTH * 2;
+    const maxSide = Math.max(MIN_PANEL, available - MIN_PANEL);
+
     if (dragging === 'left') {
-      const newWidth = Math.max(220, Math.min(450, startWidthRef.current + delta));
-      setLeftWidth(newWidth);
+      const newLeft = Math.max(MIN_PANEL, Math.min(maxSide, startLeftRef.current + delta));
+      setLeftWidth(newLeft);
     } else {
-      const newWidth = Math.max(360, Math.min(680, startWidthRef.current - delta));
-      setRightWidth(newWidth);
+      const newRight = Math.max(MIN_PANEL, Math.min(maxSide, startRightRef.current - delta));
+      setRightWidth(newRight);
     }
-  }, [dragging]);
+  }, [dragging, containerWidth]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
@@ -132,9 +163,9 @@ export function ThreeColumnLayout({
         </div>
       </div>
 
-      {/* Left Panel — liquid glass */}
+      {/* Left Panel */}
       <div
-        className={`${mobilePanel === 'left' ? 'flex' : 'hidden'} ${leftCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 w-full flex-1 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full md:flex-none`}
+        className={`${mobilePanel === 'left' ? 'flex' : 'hidden'} ${leftCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full`}
         style={{ width: isMobile ? undefined : leftWidth }}
         aria-hidden={isMobile && mobilePanel !== 'left'}
       >
@@ -151,15 +182,14 @@ export function ThreeColumnLayout({
         />
       )}
 
-      {/* Center Panel — liquid glass */}
+      {/* Center Panel */}
       <div
-        className={`${mobilePanel === 'center' ? 'flex' : 'hidden'} relative min-h-0 w-full flex-1 overflow-hidden liquid-glass-panel md:flex md:h-full`}
-        style={{ borderRight: 'none', borderLeft: 'none' }}
+        className={`${mobilePanel === 'center' ? 'flex' : 'hidden'} relative min-h-0 flex-shrink-0 overflow-hidden liquid-glass-panel md:flex md:h-full`}
+        style={{ width: isMobile ? undefined : centerWidth, borderRight: 'none', borderLeft: 'none' }}
         aria-hidden={isMobile && mobilePanel !== 'center'}
       >
         {centerPanel}
 
-        {/* Collapse / expand toggles */}
         <button
           type="button"
           onClick={() => setLeftCollapsed(v => !v)}
@@ -192,9 +222,9 @@ export function ThreeColumnLayout({
         />
       )}
 
-      {/* Right Panel — liquid glass */}
+      {/* Right Panel */}
       <div
-        className={`${mobilePanel === 'right' ? 'flex' : 'hidden'} ${rightCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 w-full flex-1 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full md:flex-none`}
+        className={`${mobilePanel === 'right' ? 'flex' : 'hidden'} ${rightCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full`}
         style={{ width: isMobile ? undefined : rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
         aria-hidden={isMobile && mobilePanel !== 'right'}
       >
