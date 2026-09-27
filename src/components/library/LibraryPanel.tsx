@@ -38,7 +38,7 @@ import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
 import { LiteratureSearchDialog } from '@/components/literature/LiteratureSearchDialog';
-import type { LiteratureResult, LiteratureMetadata } from '@/lib/literature/types';
+import type { LiteratureResult, LiteratureMetadata, LiteratureImportFeedback, LiteratureFullTextStatus } from '@/lib/literature/types';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -162,10 +162,19 @@ interface IngestionSourceDetail extends IngestionSourceSummary {
   }>;
 }
 
-function paperFromLiteratureSource(source: IngestionSourceSummary): Paper | null {
+function paperFromLiteratureSource(source: IngestionSourceDetail, current?: Paper): Paper | null {
   const literature = source.literature;
   if (!literature) return null;
   const year = Number(literature.year);
+  const hasFullText = literature.evidenceScope === 'fulltext';
+  // Summary responses do not contain the body. Never promote an abstract to fulltext.
+  const savedFullText = current?.literature?.evidenceScope === 'fulltext'
+    && current.rawContent?.trim() && current.rawContent !== current.literature.abstract
+    ? current.rawContent : undefined;
+  const rawContent = hasFullText
+    ? (source.chunks || []).map(chunk => chunk.text || '').filter(text => text.trim()).join('\n\n')
+      || source.rawContent?.trim() || savedFullText
+    : literature.abstract;
   return {
     id: source.id,
     title: literature.title,
@@ -174,8 +183,8 @@ function paperFromLiteratureSource(source: IngestionSourceSummary): Paper | null
     journal: literature.venue,
     doi: literature.doi,
     abstract: literature.abstract,
-    content: literature.abstract || '仅题录，尚无摘要或全文。',
-    rawContent: literature.abstract,
+    content: rawContent || (hasFullText ? '全文已入库，正文尚未加载；请查看来源片段。' : '仅题录，尚无摘要或全文。'),
+    rawContent,
     keywords: [literature.provider],
     shortName: source.shortName || `${literature.authors[0]?.name || '未知作者'} ${literature.year || '年份未知'}`,
     fileName: source.fileName,
@@ -417,6 +426,7 @@ export function LibraryPanel({
   const resolvedUploadTarget = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
   const libraryGenerationRef = useRef(0);
   const literatureImportInFlightRef = useRef(false);
+  const literatureImportVersionRef = useRef(0);
   const foldersRef = useRef(folders);
   const knownPaperIdsRef = useRef(new Set(folders.flatMap(folder => folder.papers.map(paper => paper.id))));
 
@@ -521,6 +531,10 @@ export function LibraryPanel({
     ingestionSyncInFlightRef.current = true;
     lastIngestionSyncAtRef.current = now;
     const generation = libraryGenerationRef.current;
+    const importVersion = literatureImportVersionRef.current;
+    const isCurrentSync = () => generation === libraryGenerationRef.current
+      && importVersion === literatureImportVersionRef.current;
+    let syncFailed = false;
     const knownPapers = new Map<string, Paper>();
     folders.forEach(folder => folder.papers.forEach(paper => knownPapers.set(paper.id, paper)));
 
@@ -533,7 +547,7 @@ export function LibraryPanel({
       });
       if (!response.ok) throw new Error('ingestion sources request failed');
       const data = await response.json() as { sources?: IngestionSourceSummary[] };
-      if (generation !== libraryGenerationRef.current) return;
+      if (!isCurrentSync()) return;
       const sources = data.sources || [];
       foldersRef.current.forEach(folder => folder.papers.forEach(paper => knownPapers.set(paper.id, paper)));
 
@@ -546,7 +560,7 @@ export function LibraryPanel({
       }
 
       for (const source of missingSources) {
-        if (generation !== libraryGenerationRef.current) return;
+        if (!isCurrentSync()) return;
         if (!importFolderId || knownPaperIdsRef.current.has(source.id)) continue;
         if (source.literature && literatureImportInFlightRef.current) continue;
         const literaturePaper = paperFromLiteratureSource(source);
@@ -564,7 +578,7 @@ export function LibraryPanel({
         });
         if (!detailResponse.ok) continue;
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
-        if (generation !== libraryGenerationRef.current) return;
+        if (!isCurrentSync()) return;
         const detail = detailData.source;
         if (!detail) continue;
         const rawContent = (detail.chunks || [])
@@ -612,34 +626,74 @@ export function LibraryPanel({
         });
       }
 
-      for (const source of data.sources || []) {
+      for (const source of sources) {
+        if (!isCurrentSync()) return;
         const current = knownPapers.get(source.id);
         if (!current) continue;
-        const nextVectorIndex = source.vectorIndex;
+        // A summary poll must never downgrade an already loaded fulltext entry.
+        if (current.literature?.evidenceScope === 'fulltext' && source.literature
+          && source.literature.evidenceScope !== 'fulltext') continue;
+        const literatureChanged = Boolean(source.literature)
+          && JSON.stringify(current.literature) !== JSON.stringify(source.literature);
+        const needsLiteratureDetails = source.literature?.evidenceScope === 'fulltext' && (
+          current.literature?.evidenceScope !== 'fulltext'
+          || !current.rawContent?.trim()
+          || current.rawContent === current.literature.abstract
+          || current.ingestionChunkCount !== source.chunkCount
+        );
+        let literatureSource: IngestionSourceDetail = source;
+        let detailsLoaded = false;
+        if (needsLiteratureDetails) {
+          const detailParams = new URLSearchParams({ id: source.id });
+          if (notebookId) detailParams.set('notebookId', notebookId);
+          try {
+            const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+              cache: 'no-store',
+              headers: accountHeaders,
+            });
+            if (detailResponse.ok) {
+              const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
+              if (detailData.source?.literature?.evidenceScope === 'fulltext') {
+                literatureSource = detailData.source;
+                detailsLoaded = Boolean(literatureSource.rawContent?.trim()
+                  || literatureSource.chunks?.some(chunk => chunk.text?.trim()));
+              }
+            }
+          } catch {
+            // Keep an honest summary/loaded body and retry detail loading on the next poll.
+          }
+          if (!isCurrentSync()) return;
+        }
+        const literaturePaper = literatureChanged || needsLiteratureDetails
+          ? paperFromLiteratureSource(literatureSource, current) : null;
+        const nextVectorIndex = literatureSource.vectorIndex;
         const changed = (
-          current.ingestionStatus !== source.status ||
-          current.ingestionChunkCount !== source.chunkCount ||
-          current.mineru?.status !== source.mineru?.status ||
-          current.mineru?.figureCount !== source.mineru?.figureCount ||
+          literatureChanged ||
+          Boolean(literaturePaper && (literaturePaper.rawContent !== current.rawContent || literaturePaper.content !== current.content)) ||
+          current.ingestionStatus !== literatureSource.status ||
+          current.ingestionChunkCount !== literatureSource.chunkCount ||
+          current.mineru?.status !== literatureSource.mineru?.status ||
+          current.mineru?.figureCount !== literatureSource.mineru?.figureCount ||
           current.vectorIndex?.status !== nextVectorIndex?.status ||
           current.vectorIndex?.count !== nextVectorIndex?.count ||
           current.vectorIndex?.dimension !== nextVectorIndex?.dimension
         );
         if (changed) {
           updatePaper(source.id, {
-            ingestionStatus: source.status,
-            ingestionStages: source.stages,
-            ingestionChunkCount: source.chunkCount,
-            mineru: source.mineru,
-            mineruStatus: legacyMinerUStatus(source.mineru),
+            ...literaturePaper,
+            ingestionStatus: literatureSource.status,
+            ingestionStages: literatureSource.stages,
+            ingestionChunkCount: needsLiteratureDetails && !detailsLoaded ? current.ingestionChunkCount : literatureSource.chunkCount,
+            mineru: literatureSource.mineru,
+            mineruStatus: legacyMinerUStatus(literatureSource.mineru),
             vectorIndex: nextVectorIndex,
           });
         }
       }
-      setIngestionSyncState('idle');
     } catch {
-      setIngestionSyncState('error');
+      syncFailed = true;
     } finally {
+      if (generation === libraryGenerationRef.current) setIngestionSyncState(syncFailed ? 'error' : 'idle');
       ingestionSyncInFlightRef.current = false;
     }
   }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, updatePaper]);
@@ -867,33 +921,45 @@ export function LibraryPanel({
     return outcome.papers.length;
   }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
-  const handleAddLiterature = useCallback(async (result: LiteratureResult) => {
+  const handleAddLiterature = useCallback(async (result: LiteratureResult): Promise<LiteratureImportFeedback> => {
     if (!accountSession) throw new Error('请先登录账号，再添加文献。');
     if (!notebookId) throw new Error('请先打开一个文献本。');
-    if (literatureImportInFlightRef.current) throw new Error('正在添加文献，请稍候。');
+    if (literatureImportInFlightRef.current) throw new Error('正在获取全文，请稍候。');
     const generation = libraryGenerationRef.current;
     const targetFolder = ensureUploadTarget();
     literatureImportInFlightRef.current = true;
+    literatureImportVersionRef.current += 1;
     try {
       const response = await fetch('/api/literature/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({ resultToken: result.resultId, notebookId }),
       });
-      const data = await response.json() as { source?: IngestionSourceDetail; error?: string };
-      if (!response.ok) throw new Error(data.error || '添加失败，请重试。');
+      const data = await response.json() as {
+        success?: boolean;
+        source?: IngestionSourceDetail;
+        fullText?: LiteratureFullTextStatus;
+        error?: string;
+      };
+      if (!response.ok || data.success === false) throw new Error(data.error || '入库或补全文失败，请重试。');
       if (generation !== libraryGenerationRef.current) throw new Error('文献本已切换，请在原文献本查看添加结果。');
-      const paper = data.source && paperFromLiteratureSource(data.source);
-      if (!paper) throw new Error('入库服务未返回完整文献记录，请重试。');
-      if (!knownPaperIdsRef.current.has(paper.id)) {
+      const source = data.source;
+      const ownerFolder = foldersRef.current.find(folder => folder.papers.some(paper => paper.id === source?.id));
+      const current = ownerFolder?.papers.find(paper => paper.id === source?.id);
+      const paper = source && paperFromLiteratureSource(source, current);
+      if (!paper?.literature || !data.fullText) throw new Error('入库服务未返回完整文献记录和全文状态，请重试。');
+      if (knownPaperIdsRef.current.has(paper.id)) {
+        updatePaper(paper.id, paper);
+      } else {
         knownPaperIdsRef.current.add(paper.id);
         addPaper(targetFolder, paper);
       }
-      setExpandedFolders(prev => new Set([...prev, targetFolder]));
+      setExpandedFolders(prev => new Set([...prev, ownerFolder?.id || targetFolder]));
+      return { literature: paper.literature, fullText: data.fullText };
     } finally {
       literatureImportInFlightRef.current = false;
     }
-  }, [accountSession, notebookId, ensureUploadTarget, addPaper]);
+  }, [accountSession, notebookId, ensureUploadTarget, addPaper, updatePaper]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -950,6 +1016,9 @@ export function LibraryPanel({
   const selectedSourceRows = folders
     .flatMap(folder => folder.papers.map(paper => ({ folderName: folder.name, paper })))
     .filter(row => selectedPapers.includes(row.paper.id));
+  const previewLiterature = sourcePreview?.status === 'ready'
+    ? sourcePreview.source.literature || sourcePreview.paper.literature
+    : sourcePreview?.paper.literature;
 
   return (
     <div
@@ -1571,15 +1640,19 @@ export function LibraryPanel({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              {sourcePreview.paper.literature && (
+              {previewLiterature && (
                 <div className="mb-3 space-y-2 rounded-lg border p-3 text-xs" style={{ color: '#334155', backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}>
-                  <p>{sourcePreview.paper.authors.join(', ') || '未知作者'} · {sourcePreview.paper.literature.year || '年份未知'}</p>
-                  {sourcePreview.paper.literature.venue && <p>{sourcePreview.paper.literature.venue}</p>}
-                  {sourcePreview.paper.literature.doi && <p className="break-all">DOI：{sourcePreview.paper.literature.doi}</p>}
-                  <p>{sourcePreview.paper.literature.evidenceScope === 'metadata' ? '仅题录：已收藏，尚无摘要或全文，不作为正文证据。' : '仅摘要：未获取全文，以下内容不能替代阅读全文。'}</p>
-                  {sourcePreview.paper.literature.abstract && <p className="whitespace-pre-wrap">{sourcePreview.paper.literature.abstract}</p>}
-                  {sourcePreview.paper.literature.url && (
-                    <a href={sourcePreview.paper.literature.url} target="_blank" rel="noopener noreferrer" className="inline-block underline" style={{ color: '#1d4ed8' }}>
+                  <p>{previewLiterature.authors.map(author => author.name).join(', ') || '未知作者'} · {previewLiterature.year || '年份未知'}</p>
+                  {previewLiterature.venue && <p>{previewLiterature.venue}</p>}
+                  {previewLiterature.doi && <p className="break-all">DOI：{previewLiterature.doi}</p>}
+                  <p role="status" style={{ color: previewLiterature.evidenceScope === 'fulltext' ? '#15803d' : '#92400e' }}>
+                    {previewLiterature.evidenceScope === 'fulltext' ? '全文已入库：可通过已保存的来源片段核验正文。'
+                      : previewLiterature.evidenceScope === 'abstract' ? '仅摘要：未获取全文，以下内容不能替代阅读全文。'
+                        : '仅题录：已收藏，尚无摘要或全文，不作为正文证据。'}
+                  </p>
+                  {previewLiterature.abstract && <p className="whitespace-pre-wrap">摘要：{previewLiterature.abstract}</p>}
+                  {previewLiterature.url && (
+                    <a href={previewLiterature.url} target="_blank" rel="noopener noreferrer" className="inline-block underline" style={{ color: '#1d4ed8' }}>
                       打开原文链接
                     </a>
                   )}
@@ -1606,7 +1679,7 @@ export function LibraryPanel({
                   .filter(chunk => Boolean(chunk.text?.trim()))
                   .slice(0, 12);
                 const dataPreview = buildSourceDataPreview(sourcePreview.paper, sourcePreview.source);
-                if (chunks.length === 0 && sourcePreview.paper.literature?.evidenceScope === 'metadata') return null;
+                if (chunks.length === 0 && previewLiterature?.evidenceScope === 'metadata') return null;
                 if (chunks.length === 0 && !dataPreview) {
                   return (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">

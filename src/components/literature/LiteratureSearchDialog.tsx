@@ -21,7 +21,7 @@ import {
   Check,
   BookOpen,
 } from 'lucide-react';
-import type { LiteratureResult, LiteratureProviderId, CitationStyle, LiteratureMetadata } from '@/lib/literature/types';
+import type { LiteratureResult, LiteratureProviderId, CitationStyle, LiteratureMetadata, LiteratureImportFeedback } from '@/lib/literature/types';
 import { sameLiteratureEntry } from '@/lib/literature/library';
 import { copyTextWithFallback } from '@/lib/clipboard';
 
@@ -66,20 +66,21 @@ const YEAR_RANGES: { value: string; label: string; from?: number; to?: number }[
 interface LiteratureSearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport?: (result: LiteratureResult) => void;
-  onAddToLibrary?: (result: LiteratureResult) => Promise<void>;
+  onAddToLibrary?: (result: LiteratureResult) => Promise<LiteratureImportFeedback>;
   existingLiterature?: LiteratureMetadata[];
   targetLabel?: string;
   addDisabledReason?: string;
 }
 
 export function LiteratureSearchDialog({
-  open, onOpenChange, onImport, onAddToLibrary,
+  open, onOpenChange, onAddToLibrary,
   existingLiterature = [], targetLabel, addDisabledReason,
 }: LiteratureSearchDialogProps) {
   const [addingId, setAddingId] = useState<string | null>(null);
   const addingRef = useRef(false);
-  const [addError, setAddError] = useState<{ resultId: string; message: string } | null>(null);
+  const searchGenerationRef = useRef(0);
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
+  const [importFeedback, setImportFeedback] = useState<Record<string, LiteratureImportFeedback>>({});
   const [query, setQuery] = useState('');
   const [selectedSources, setSelectedSources] = useState<Set<LiteratureProviderId>>(
     new Set(['crossref', 'europepmc', 'semantic-scholar', 'openalex', 'arxiv', 'pubmed', 'scite'])
@@ -88,8 +89,6 @@ export function LiteratureSearchDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [fulltextLoading, setFulltextLoading] = useState<string | null>(null);
-  const [fulltextError, setFulltextError] = useState<{resultId: string; message: string} | null>(null);
   const [citeError, setCiteError] = useState<string | null>(null);
   const [citeStyle, setCiteStyle] = useState<CitationStyle>('apa');
   const [yearRange, setYearRange] = useState<string>('all');
@@ -108,9 +107,14 @@ export function LiteratureSearchDialog({
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
+    const generation = ++searchGenerationRef.current;
     setLoading(true);
     setError(null);
     setResults([]);
+    setAddErrors({});
+    setImportFeedback({});
+    setCiteError(null);
+    setCopiedId(null);
 
     const range = YEAR_RANGES.find(r => r.value === yearRange);
     const yearFrom = range?.from;
@@ -135,70 +139,51 @@ export function LiteratureSearchDialog({
       }
 
       const data = await res.json();
-      setResults(data.results || []);
+      if (generation === searchGenerationRef.current) setResults(data.results || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '搜索失败');
+      if (generation === searchGenerationRef.current) setError(err instanceof Error ? err.message : '搜索失败');
     } finally {
-      setLoading(false);
+      if (generation === searchGenerationRef.current) setLoading(false);
     }
   }, [query, selectedSources, yearRange]);
 
   const handleAddToLibrary = async (result: LiteratureResult) => {
     if (!onAddToLibrary || addDisabledReason || addingRef.current) return;
-    if (existingLiterature.some(paper => sameLiteratureEntry(paper, result))) return;
+    if (existingLiterature.some(paper => paper.evidenceScope === 'fulltext' && sameLiteratureEntry(paper, result))
+      || importFeedback[result.resultId]?.literature.evidenceScope === 'fulltext') return;
+    const generation = searchGenerationRef.current;
     addingRef.current = true;
     setAddingId(result.resultId);
-    setAddError(null);
+    setAddErrors(prev => {
+      const next = { ...prev };
+      delete next[result.resultId];
+      return next;
+    });
+    setImportFeedback(prev => {
+      const next = { ...prev };
+      delete next[result.resultId];
+      return next;
+    });
     try {
-      await onAddToLibrary(result);
+      const feedback = await onAddToLibrary(result);
+      if (generation === searchGenerationRef.current) {
+        setImportFeedback(prev => ({ ...prev, [result.resultId]: feedback }));
+      }
     } catch (err) {
-      setAddError({
-        resultId: result.resultId,
-        message: err instanceof Error ? err.message : '添加失败，请重试。',
-      });
+      if (generation === searchGenerationRef.current) {
+        setAddErrors(prev => ({
+          ...prev,
+          [result.resultId]: err instanceof Error ? err.message : '入库或补全文失败，请重试。',
+        }));
+      }
     } finally {
       addingRef.current = false;
       setAddingId(null);
     }
   };
 
-  const handleGetFullText = useCallback(async (result: LiteratureResult) => {
-    if (!result.doi && !result.url) return;
-    setFulltextError(null);
-    setFulltextLoading(result.resultId);
-
-    try {
-      const body = result.doi
-        ? { type: 'doi', doi: result.doi }
-        : { type: 'url', pdfUrl: result.url };
-      const res = await fetch('/api/literature/fulltext', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setFulltextError({resultId: result.resultId, message: data.message || '全文获取失败'});
-        setTimeout(() => setFulltextError(null), 3000);
-        return;
-      }
-
-      const data = await res.json();
-      if (onImport) {
-        const fullResult = { ...result, fullText: data.fullText, evidenceScope: 'fulltext' as const };
-        onImport(fullResult);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '全文获取失败';
-      setFulltextError({resultId: result.resultId, message});
-      setTimeout(() => setFulltextError(null), 3000);
-    } finally {
-      setFulltextLoading(null);
-    }
-  }, [onImport]);
-
   const handleCite = useCallback(async (result: LiteratureResult) => {
+    const generation = searchGenerationRef.current;
     setCiteError(null);
     try {
       const res = await fetch('/api/literature/cite', {
@@ -221,21 +206,24 @@ export function LiteratureSearchDialog({
       if (!res.ok) throw new Error('引用格式化失败');
 
       const data = await res.json();
+      if (generation !== searchGenerationRef.current) return;
       const citation = data.citations?.[0] || '';
       if (!citation) throw new Error('引用内容为空');
 
       const ok = await copyTextWithFallback(citation);
+      if (generation !== searchGenerationRef.current) return;
       if (!ok) {
         setCiteError('复制失败，请手动复制: ' + citation);
-        setTimeout(() => setCiteError(null), 8000);
         return;
       }
       setCopiedId(result.resultId);
-      setTimeout(() => setCopiedId(null), 3000);
+      setTimeout(() => {
+        if (generation === searchGenerationRef.current) setCopiedId(null);
+      }, 3000);
     } catch (err) {
+      if (generation !== searchGenerationRef.current) return;
       const message = err instanceof Error ? err.message : '引用格式化失败';
       setCiteError(message);
-      setTimeout(() => setCiteError(null), 3000);
     }
   }, [citeStyle]);
 
@@ -256,7 +244,7 @@ export function LiteratureSearchDialog({
           </DialogTitle>
           {onAddToLibrary && (
             <p className="text-xs" style={{ color: '#475569' }}>
-              添加到：{targetLabel || '当前文献库'}。先保存题录和摘要，不自动下载全文。
+              添加到：{targetLabel || '当前文献库'}。默认尝试获取并保存合法开放全文；未获取到时保存题录/摘要，可重试补全文。
               {addDisabledReason && <span style={{ color: '#b45309' }}> {addDisabledReason}</span>}
             </p>
           )}
@@ -327,7 +315,7 @@ export function LiteratureSearchDialog({
             </div>
 
             {loading && (
-              <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+              <div role="status" className="flex items-center gap-2 text-xs" style={{ color: '#475569' }}>
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span>
                   正在通过 {Array.from(selectedSources).map(s => SOURCE_LABELS[s]).join('、')} 检索...
@@ -336,13 +324,13 @@ export function LiteratureSearchDialog({
             )}
 
             {citeError && (
-              <div className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">
+              <div role="alert" className="text-xs px-3 py-2 rounded-lg" style={{ color: '#b91c1c', backgroundColor: '#fef2f2' }}>
                 {citeError}
               </div>
             )}
 
             {error && (
-              <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md p-3">
+              <div role="alert" className="text-sm border rounded-md p-3" style={{ color: '#b91c1c', backgroundColor: '#fef2f2', borderColor: '#fecaca' }}>
                 {error}
               </div>
             )}
@@ -350,7 +338,15 @@ export function LiteratureSearchDialog({
 
           <div className="flex-1 min-h-0 mt-3 overflow-y-scroll pr-2">
             <div className="space-y-3">
-              {results.map(result => (
+              {results.map(result => {
+                const feedback = importFeedback[result.resultId];
+                const existing = existingLiterature.find(paper => paper.evidenceScope === 'fulltext' && sameLiteratureEntry(paper, result))
+                  || existingLiterature.find(paper => sameLiteratureEntry(paper, result));
+                const saved = existing?.evidenceScope === 'fulltext' ? existing : feedback?.literature || existing;
+                const hasFullText = saved?.evidenceScope === 'fulltext';
+                const isAdding = addingId === result.resultId;
+                const fullText = feedback?.fullText;
+                return (
                 <div
                   key={result.resultId}
                   className="border border-[var(--glass-border)] rounded-lg p-3 space-y-2 hover:border-[var(--glass-border)] transition-colors"
@@ -374,56 +370,35 @@ export function LiteratureSearchDialog({
 
                   {result.abstract && (
                     <p className="text-xs text-[var(--text-tertiary)] line-clamp-3">
-                      {result.abstract}
+                      检索摘要：{result.abstract}
                     </p>
                   )}
 
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {onAddToLibrary && (() => {
-                      const added = existingLiterature.some(paper => sameLiteratureEntry(paper, result));
-                      return (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs gap-1"
-                          style={{
-                            color: added ? '#15803d' : '#1d4ed8',
-                            backgroundColor: added ? '#f0fdf4' : '#eff6ff',
-                            borderColor: added ? '#bbf7d0' : '#bfdbfe',
-                          }}
-                          disabled={added || addingId !== null || Boolean(addDisabledReason)}
-                          onClick={() => void handleAddToLibrary(result)}
-                        >
-                          {addingId === result.resultId ? <Loader2 className="h-3 w-3 animate-spin" />
-                            : added ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                          {addingId === result.resultId ? '添加中...' : added ? '已加入' : '加入当前文献库'}
-                        </Button>
-                      );
-                    })()}
-                    <span className="text-[10px]" style={{ color: '#64748b' }}>
-                      {result.abstract?.trim() ? '仅摘要' : '仅题录'}
-                    </span>
-                    {(result.doi || result.url) && (
+                    {onAddToLibrary && (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-6 text-xs gap-1"
-                        onClick={() => handleGetFullText(result)}
-                        disabled={fulltextLoading === result.resultId}
+                        className="h-7 text-xs gap-1"
+                        style={{
+                          color: hasFullText ? '#15803d' : '#1d4ed8',
+                          backgroundColor: hasFullText ? '#f0fdf4' : '#eff6ff',
+                          borderColor: hasFullText ? '#bbf7d0' : '#bfdbfe',
+                        }}
+                        disabled={hasFullText || addingId !== null || Boolean(addDisabledReason)}
+                        onClick={() => void handleAddToLibrary(result)}
                       >
-                        {fulltextLoading === result.resultId ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            <span>获取中...</span>
-                          </>
-                        ) : (
-                          <>
-                            <FileText className="h-3 w-3" />
-                            获取全文
-                          </>
-                        )}
+                        {isAdding ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : hasFullText ? <Check className="h-3 w-3" />
+                            : saved ? <FileText className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                        加入当前文献库
                       </Button>
                     )}
+                    <span className="text-[10px]" style={{ color: hasFullText ? '#15803d' : '#64748b' }}>
+                      {saved
+                        ? `已入库：${hasFullText ? '全文' : saved.evidenceScope === 'abstract' ? '仅摘要' : '仅题录'}`
+                        : `检索结果：${result.evidenceScope === 'fulltext' ? '全文' : result.evidenceScope === 'abstract' ? '摘要' : '题录'}（未入库）`}
+                    </span>
 
                     <Button
                       variant="ghost"
@@ -465,18 +440,29 @@ export function LiteratureSearchDialog({
                     )}
                   </div>
 
-                  {addError?.resultId === result.resultId && (
-                    <div role="alert" className="text-xs px-2 py-1 rounded" style={{ color: '#b91c1c', backgroundColor: '#fef2f2' }}>
-                      {addError.message}
+                  {isAdding && (
+                    <div role="status" className="text-xs px-2 py-1 rounded" style={{ color: '#1d4ed8', backgroundColor: '#eff6ff' }}>
+                      正在获取合法开放全文并保存到文献库...
                     </div>
                   )}
-                  {fulltextError?.resultId === result.resultId && (
-                    <div className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">
-                      {fulltextError.message}
+                  {fullText && !isAdding && (
+                    <div role="status" className="text-xs px-2 py-1 rounded" style={{
+                      color: hasFullText ? '#15803d' : '#92400e',
+                      backgroundColor: hasFullText ? '#f0fdf4' : '#fffbeb',
+                    }}>
+                      {fullText.status === 'partial' && !hasFullText
+                        ? `已保存${saved?.evidenceScope === 'abstract' ? '题录/摘要' : '题录'}，全文未获取：${fullText.message} 可再次点击“加入当前文献库”，获取成功后更新原条目。`
+                        : fullText.status === 'existing' ? '全文已在当前文献库，已复用保存的正文。' : '全文已保存到当前文献库。'}
+                    </div>
+                  )}
+                  {addErrors[result.resultId] && (
+                    <div role="alert" className="text-xs px-2 py-1 rounded" style={{ color: '#b91c1c', backgroundColor: '#fef2f2' }}>
+                      {addErrors[result.resultId]}
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
 
               {!loading && results.length === 0 && !error && (
                 <div className="text-center text-sm text-[var(--text-tertiary)] py-8">
@@ -491,7 +477,7 @@ export function LiteratureSearchDialog({
               <Separator />
               <div className="text-xs text-[var(--text-tertiary)]">
                 共 {results.length} 条结果
-                {onImport && ' · 点击"获取全文"可导入文库'}
+                {onAddToLibrary && ' · 入库时尝试获取全文；题录/摘要条目可补全文'}
               </div>
             </>
           )}

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { fetchFullText, fetchFullTextFromUrl, FullTextError } from '@/lib/literature/fulltext';
-import { verifyLiteratureResult } from '@/lib/literature/result-token';
+import { fetchFullText, fetchFullTextFromUrl, fetchLiteratureFullText, FullTextError } from '@/lib/literature/fulltext';
+import { MAX_LITERATURE_RESULT_TOKEN_LENGTH, verifyLiteratureResult } from '@/lib/literature/result-token';
 
 const fulltextSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('doi'), doi: z.string().min(1) }),
-  z.object({ type: z.literal('url'), pdfUrl: z.string().url() }),
-  z.object({ type: z.literal('resultId'), resultId: z.string().min(1) }),
+  z.object({ type: z.literal('doi'), doi: z.string().min(1).max(2048) }),
+  z.object({ type: z.literal('url'), pdfUrl: z.string().url().max(8192) }),
+  z.object({ type: z.literal('resultId'), resultId: z.string().min(1).max(MAX_LITERATURE_RESULT_TOKEN_LENGTH) }),
 ]);
 
 export async function POST(request: NextRequest) {
@@ -34,13 +34,8 @@ export async function POST(request: NextRequest) {
       if (!payload) {
         return NextResponse.json({ error: '无效的文献令牌' }, { status: 401 });
       }
-      doi = payload.doi;
-      if (!doi) {
-        return NextResponse.json(
-          { error: 'no_oa', message: '该论文无 DOI，无法获取全文' },
-          { status: 404 }
-        );
-      }
+      const result = await fetchLiteratureFullText(payload);
+      return NextResponse.json({ success: true, ...result });
     }
 
     if (pdfUrl) {
@@ -68,9 +63,17 @@ export async function POST(request: NextRequest) {
     );
   } catch (err) {
     if (err instanceof FullTextError) {
+      const status = {
+        no_oa: 404,
+        no_identifier: 404,
+        network_error: 502,
+        extraction_failed: 422,
+        unsafe_url: 400,
+        too_large: 413,
+      }[err.code];
       return NextResponse.json(
         { error: err.code, message: err.message },
-        { status: err.code === 'no_oa' ? 404 : 500 }
+        { status }
       );
     }
 

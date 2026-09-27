@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
-import { fetchFullText, FullTextError } from '@/lib/literature/fulltext';
+import { fetchLiteratureFullText, FullTextError } from '@/lib/literature/fulltext';
 import { literatureEntryKey, sameLiteratureEntry } from '@/lib/literature/library';
-import type { LiteratureMetadata } from '@/lib/literature/types';
+import type { FullTextResult, LiteratureFullTextStatus, LiteratureMetadata } from '@/lib/literature/types';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
 import { embedTexts } from '@/lib/ai-service';
 import { upsertSourceChunks } from '@/lib/vector-store';
@@ -225,13 +225,13 @@ export function buildReadySourceChunksResultFromSources(
   const candidateLimit = scope.topK && scope.topK > 0 ? Math.floor(scope.topK) : undefined;
   const readySources = sources.filter(source => (
     source.status === 'succeeded' &&
-    source.chunks.length > 0 &&
+    (source.chunks?.length ?? 0) > 0 &&
     sourceMatchesOwner(source, scope.ownerMemberId) &&
     sourceMatchesNotebook(source, scope.notebookId) &&
     sourceMatchesIdentities(source, identities)
   )).map(source => ({
     ...source,
-    chunks: source.chunks.filter(chunk => chunkMatchesQuery(chunk, queryTokens)),
+    chunks: (source.chunks || []).filter(chunk => chunkMatchesQuery(chunk, queryTokens)),
   })).filter(source => source.chunks.length > 0);
   const chunks = readySources.flatMap(source => source.chunks).slice(0, candidateLimit);
   const returnedSourceIds = new Set(chunks.map(chunk => chunk.sourceId));
@@ -556,7 +556,7 @@ class PostgresSourceStoreAdapter implements SourceStoreAdapter {
         ],
       );
 
-      for (const chunk of source.chunks) {
+      for (const chunk of (source.chunks || [])) {
         await client.query(
           `
             INSERT INTO ${POSTGRES_CHUNKS_TABLE} (
@@ -791,11 +791,76 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
   };
 }
 
-/** Persist search metadata and, if present, abstract-only evidence. No download or embedding. */
+type LiteratureUpgrade = { source: StoredSourceRecord; fullText: LiteratureFullTextStatus };
+const literatureUpgrades = new Map<string, Promise<LiteratureUpgrade>>();
+
+async function upgradeLiteratureFullText(
+  adapter: SourceStoreAdapter,
+  original: StoredSourceRecord,
+  metadata: LiteratureMetadata,
+  fetcher: typeof fetchLiteratureFullText,
+): Promise<LiteratureUpgrade> {
+  let downloaded: FullTextResult | undefined;
+  let outcome: LiteratureFullTextStatus;
+  try {
+    downloaded = await fetcher(metadata);
+    if (!downloaded.fullText.trim()) {
+      throw new FullTextError('extraction_failed', '未能提取正文，可上传合法持有的 PDF。');
+    }
+    outcome = { status: 'downloaded', charCount: downloaded.fullText.length };
+  } catch (error) {
+    outcome = error instanceof FullTextError
+      ? { status: 'partial', code: error.code, message: error.message }
+      : { status: 'partial', code: 'network_error', message: '全文请求失败，请稍后重试或上传 PDF。' };
+  }
+
+  const matches = (source: StoredSourceRecord) => source.id === original.id
+    && source.ownerMemberId === original.ownerMemberId && source.notebookId === original.notebookId;
+  if (outcome.status === 'partial' || !downloaded) {
+    const source = (await adapter.read()).sources.find(matches);
+    if (!source) throw new Error('Literature source no longer exists');
+    return {
+      source,
+      fullText: source.literature?.evidenceScope === 'fulltext' ? { status: 'existing' } : outcome,
+    };
+  }
+
+  let updated: StoredSourceRecord | undefined;
+  const fullText = downloaded.fullText;
+  await adapter.mutate(store => {
+    const source = store.sources.find(matches);
+    if (!source?.literature) throw new Error('Literature source no longer exists');
+    updated = source;
+    if (source.literature.evidenceScope === 'fulltext') {
+      outcome = { status: 'existing' };
+      return store;
+    }
+    const chunks = buildSourceChunks([{
+      id: source.id,
+      title: source.title,
+      abstract: source.literature.abstract,
+      rawContent: fullText,
+      shortName: source.shortName,
+      literature: { evidenceScope: 'fulltext' },
+    }]);
+    if (!chunks.length) throw new Error('Full text produced no evidence chunks');
+    source.literature = { ...source.literature, evidenceScope: 'fulltext' };
+    source.chunks = chunks;
+    source.chunkCount = chunks.length;
+    source.tokenEstimate = chunks.reduce((sum, chunk) => sum + chunk.tokenEstimate, 0);
+    source.stages = setStage(source.stages, 'extract', 'succeeded');
+    source.updatedAt = nowIso();
+    return store;
+  });
+  if (!updated) throw new Error('Literature upgrade did not complete');
+  return { source: updated, fullText: outcome };
+}
+
 export async function importLiteratureSource(
   literature: LiteratureMetadata,
   scope: { ownerMemberId: string; notebookId: string },
-): Promise<{ source: StoredSourceRecord; alreadyExists: boolean }> {
+  options: { fetchFullText?: typeof fetchLiteratureFullText } = {},
+): Promise<LiteratureUpgrade & { alreadyExists: boolean }> {
   const ownerMemberId = scope.ownerMemberId;
   const notebookId = normalizeNotebookId(scope.notebookId);
   if (!ownerMemberId?.trim() || !notebookId || !literature.title.trim()) {
@@ -855,44 +920,27 @@ export async function importLiteratureSource(
     return { ...store, sources: [...store.sources, source].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) };
   });
   if (!result) throw new Error('Literature import did not complete');
-
-  if (!result.alreadyExists && metadata.doi) {
-    try {
-      const fullTextResult = await fetchFullText(metadata.doi);
-      if (fullTextResult.fullText?.trim()) {
-        await getSourceStoreAdapter().mutate(store => {
-          const source = store.sources.find(s => s.id === result!.source.id);
-          if (!source) return store;
-
-          source.literature = {
-            ...source.literature!,
-            evidenceScope: 'fulltext',
-          };
-
-          const shortName = `${metadata.authors[0]?.name || '未知作者'}. ${metadata.year || '?'}`;
-          source.chunks = buildSourceChunks([{
-            id: source.id,
-            title: metadata.title,
-            abstract,
-            rawContent: fullTextResult.fullText,
-            shortName,
-            literature: { evidenceScope: 'fulltext' },
-          }]);
-          source.chunkCount = source.chunks.length;
-          source.tokenEstimate = source.chunks.reduce((sum, chunk) => sum + chunk.tokenEstimate, 0);
-          source.updatedAt = nowIso();
-
-          result = { source, alreadyExists: false };
-          return store;
-        });
-      }
-    } catch (error) {
-      const errMsg = error instanceof FullTextError ? `${error.code}: ${error.message}` : String(error);
-      console.warn(`[importLiteratureSource] Full text fetch failed for DOI ${metadata.doi}: ${errMsg}`);
-    }
+  if (result.source.literature?.evidenceScope === 'fulltext') {
+    return { ...result, fullText: { status: 'existing' } };
   }
 
-  return result;
+  const sourceId = result.source.id;
+  let upgrade = literatureUpgrades.get(sourceId);
+  if (!upgrade) {
+    const existingMetadata = result.source.literature!;
+    upgrade = upgradeLiteratureFullText(getSourceStoreAdapter(), result.source, {
+      ...existingMetadata,
+      doi: existingMetadata.doi || metadata.doi,
+      arxivId: existingMetadata.arxivId || metadata.arxivId,
+      url: metadata.url || existingMetadata.url,
+    }, options.fetchFullText || fetchLiteratureFullText);
+    literatureUpgrades.set(sourceId, upgrade);
+  }
+  try {
+    return { ...await upgrade, alreadyExists: result.alreadyExists };
+  } finally {
+    if (literatureUpgrades.get(sourceId) === upgrade) literatureUpgrades.delete(sourceId);
+  }
 }
 
 export async function ingestExtractedSource(

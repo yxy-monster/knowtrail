@@ -57,6 +57,23 @@ export interface FullTextResult {
   charCount: number;
 }
 
+export type FullTextFailureCode =
+  | 'no_oa'
+  | 'network_error'
+  | 'extraction_failed'
+  | 'no_identifier'
+  | 'unsafe_url'
+  | 'too_large';
+
+export type LiteratureFullTextStatus =
+  | { status: 'downloaded' | 'existing'; charCount?: number }
+  | { status: 'partial'; code: FullTextFailureCode; message: string };
+
+export interface LiteratureImportFeedback {
+  literature: LiteratureMetadata;
+  fullText: LiteratureFullTextStatus;
+}
+
 export type CitationStyle = 'bibtex' | 'apa' | 'mla' | 'chicago' | 'ieee' | 'GB/T 7714';
 
 export interface CitationPaper {

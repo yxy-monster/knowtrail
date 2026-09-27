@@ -41,7 +41,7 @@ export async function resolveMemberBailianProfile(request: NextRequest | Request
   const session = await resolveAccountSessionFromRequest(request);
   if (!session) throw new BailianProfileRequiredError();
   const client = accountClient();
-  if (!client) throw new Error('账号模型配置服务尚未连接，请联系管理员。');
+  if (!client) throw new BailianProfileRequiredError();
   try {
     return await client.resolveMemberProviderProfile({
       tenantId: session.tenant_id,

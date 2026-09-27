@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
+import { mock } from 'node:test';
+import dns from 'node:dns/promises';
+import https from 'node:https';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,7 +11,7 @@ import { POST } from '../src/app/api/literature/import/route';
 import {
   buildSourceStoreFromPostgresRows,
   getIngestionSource,
-  importLiteratureSource,
+  importLiteratureSource as importLiteratureSourceWithFullText,
   listIngestionSources,
   listReadySourceChunks,
   sourceStoreStatus,
@@ -27,11 +30,17 @@ import {
   verifyLiteratureResult,
 } from '../src/lib/literature/result-token';
 import { searchAllSources } from '../src/lib/literature/service';
-import { LITERATURE_PROVIDER_IDS, type LiteratureMetadata } from '../src/lib/literature/types';
+import { LITERATURE_PROVIDER_IDS, type LiteratureMetadata, type LiteratureFullTextStatus, type FullTextFailureCode } from '../src/lib/literature/types';
+import { FullTextError } from '../src/lib/literature/fulltext';
+import { buildSourceChunks } from '../src/lib/rag';
 import { LocalJsonSourceStoreAdapter } from '../src/lib/source-store/local-json-adapter';
 import type { StoredSourceRecord } from '../src/lib/source-store/types';
 
-type ImportResponse = { success: true; alreadyExists: boolean; source: StoredSourceRecord };
+const unavailableFullText = async () => { throw new FullTextError('no_oa', '该论文暂无开放获取全文'); };
+const importLiteratureSource: typeof importLiteratureSourceWithFullText = (paper, scope, options) =>
+  importLiteratureSourceWithFullText(paper, scope, { fetchFullText: unavailableFullText, ...options });
+
+type ImportResponse = { success: true; alreadyExists: boolean; source: StoredSourceRecord; fullText: LiteratureFullTextStatus };
 
 const paper: LiteratureMetadata = {
   title: 'Reliable evidence for literature libraries',
@@ -86,11 +95,23 @@ async function main() {
   const apiStatuses = new Map<number, number>();
   let passed = 0;
   Object.assign(process.env, envPatch);
+  const dnsMock = mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }]);
+  const httpsMock = mock.method(https, 'request', (input: string | URL | https.RequestOptions) => {
+    const hostname = typeof input === 'string' ? new URL(input).hostname
+      : input instanceof URL ? input.hostname : input.hostname;
+    if (!['api.unpaywall.org', 'arxiv.org'].includes(String(hostname))) {
+      unexpectedFetchCalls.push(`https:${hostname}`);
+    }
+    throw new FullTextError('no_oa', '离线模拟：暂无可获取的开放全文');
+  });
   globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    if (new URL(url).hostname === 'api.unpaywall.org') {
+      return Response.json({ is_oa: false, best_oa_location: null, oa_locations: [] });
+    }
     if (url !== authUrl) {
       unexpectedFetchCalls.push(url);
-      throw new Error('Literature import must not fetch anything except auth/me');
+      throw new Error('Unexpected non-fixture network request');
     }
     const request = new Request(input, init);
     const authorization = request.headers.get('authorization') || '';
@@ -114,7 +135,7 @@ async function main() {
     return Response.json(context);
   };
   function assertFetchBoundary() {
-    assert.deepEqual(unexpectedFetchCalls, [], 'No non-auth fetch calls, downloads or embeddings are allowed');
+    assert.deepEqual(unexpectedFetchCalls, [], 'Only auth and controlled OA fixtures are allowed; no real downloads or embeddings');
     assert.deepEqual([...authCalls].sort(), [...expectedAuthCalls].sort(), 'Exactly one auth/me call per bearer request');
   }
   async function check(label: string, run: () => void | Promise<void>) {
@@ -663,12 +684,195 @@ async function main() {
       assert.deepEqual(await listIngestionSources(retryScope), []);
     });
 
+    const fullScope = { ownerMemberId: 'fulltext-member', notebookId: 'fulltext-notebook' };
+    const fullText = 'Methods: We examined the complete original study. Results: The full-text evidence is persisted, not merely an abstract. '.repeat(30);
+    const fullFixture = async () => ({ fullText, pdfUrl: 'https://example.org/paper.pdf', source: 'direct' as const, charCount: fullText.length });
+
+    await check('first import persists full text and survives fresh store reads', async () => {
+      const result = await importLiteratureSource(paper, fullScope, { fetchFullText: fullFixture });
+      assert.equal(result.alreadyExists, false);
+      assert.equal(result.fullText.status, 'downloaded');
+      assert.equal(result.source.literature?.evidenceScope, 'fulltext');
+      assert(result.source.chunks.some(chunk => chunk.text.includes('complete original study')));
+      const restored = await getIngestionSource(result.source.id, fullScope);
+      assert.deepEqual(restored, JSON.parse(JSON.stringify(result.source)));
+      const evidence = await listReadySourceChunks({ ...fullScope, identities: [result.source.id] });
+      assert(evidence.chunks.some(chunk => chunk.text.includes('complete original study')));
+    });
+
+    await check('existing full text is reused without a new download or downgrade', async () => {
+      let downloads = 0;
+      const result = await importLiteratureSource(paper, fullScope, { fetchFullText: async () => {
+        downloads++;
+        throw new Error('Should never download');
+      } });
+      assert.equal(result.alreadyExists, true);
+      assert.equal(result.fullText.status, 'existing');
+      assert.equal(result.source.literature?.evidenceScope, 'fulltext');
+      assert.equal(downloads, 0);
+    });
+
+    await check('previous metadata-only entry can be upgraded without duplicate or lost identity', async () => {
+      const retryScope = { ...fullScope, notebookId: 'fulltext-retry' };
+      const metadata = { ...paper, abstract: '', arxivId: undefined };
+      const first = await importLiteratureSource(metadata, retryScope);
+      assert.equal(first.source.literature?.evidenceScope, 'metadata');
+      assert.equal(first.fullText.status, 'partial');
+      const result = await importLiteratureSource(metadata, retryScope, { fetchFullText: fullFixture });
+      assert.equal(result.alreadyExists, true);
+      assert.equal(result.source.id, first.source.id);
+      assert.equal(result.source.createdAt, first.source.createdAt);
+      assert.equal(result.source.literature?.evidenceScope, 'fulltext');
+      assert.equal((await listIngestionSources(retryScope)).length, 1);
+    });
+
+    await check('repeated retrieval replaces original evidence without duplicate entries or appended chunks', async () => {
+      const retryScope = { ...fullScope, notebookId: 'replace-existing-evidence' };
+      const first = await importLiteratureSource(paper, retryScope);
+      const failedRetry = await importLiteratureSource(paper, retryScope);
+      assert.deepEqual(failedRetry.source, first.source);
+      let downloads = 0;
+      const fetchFullText = async () => { downloads++; return fullFixture(); };
+      const replacement = await importLiteratureSource(paper, retryScope, { fetchFullText });
+      const expectedChunks = buildSourceChunks([{
+        id: first.source.id, title: first.source.title, abstract: paper.abstract,
+        rawContent: fullText, shortName: first.source.shortName, literature: { evidenceScope: 'fulltext' },
+      }]);
+      assert.equal(replacement.source.id, first.source.id);
+      assert.equal(replacement.source.createdAt, first.source.createdAt);
+      assert.deepEqual(replacement.source.chunks, expectedChunks);
+      const repeated = await importLiteratureSource({ ...paper, retrievedAt: '2026-09-24T00:00:00.000Z' }, retryScope, { fetchFullText });
+      assert.equal(repeated.alreadyExists, true);
+      assert.equal(repeated.fullText.status, 'existing');
+      assert.equal(downloads, 1);
+      const persisted = JSON.parse(JSON.stringify(replacement.source));
+      assert.deepEqual(repeated.source, persisted);
+      assert.deepEqual(await listIngestionSources(retryScope), [persisted]);
+    });
+
+    await check('arXiv-only metadata reaches the full-text resolver without requiring a DOI', async () => {
+      const metadata = { ...paper, doi: undefined, url: 'https://arxiv.org/abs/2501.01234v2' };
+      const result = await importLiteratureSource(metadata, { ...fullScope, notebookId: 'arxiv-fulltext' }, {
+        fetchFullText: async input => {
+          assert.equal(input.doi, undefined);
+          assert.equal(input.arxivId, metadata.arxivId);
+          return fullFixture();
+        },
+      });
+      assert.equal(result.source.literature?.evidenceScope, 'fulltext');
+    });
+
+    await check('all acquisition failures return reasons and preserve partial evidence', async () => {
+      const codes: FullTextFailureCode[] = ['no_oa', 'network_error', 'extraction_failed', 'no_identifier', 'unsafe_url', 'too_large'];
+      for (const code of codes) {
+        const failureScope = { ...fullScope, notebookId: `failure-${code}` };
+        const metadata = { ...paper, abstract: code === 'no_oa' ? '' : paper.abstract };
+        const result = await importLiteratureSource(metadata, failureScope, { fetchFullText: async () => {
+          throw new FullTextError(code, `失败原因：${code}`);
+        } });
+        assert.deepEqual(result.fullText, { status: 'partial', code, message: `失败原因：${code}` });
+        assert.equal(result.source.literature?.evidenceScope, metadata.abstract ? 'abstract' : 'metadata');
+        assert.equal(result.source.chunkCount > 0, Boolean(metadata.abstract));
+        assert(!result.source.chunks.some(chunk => chunk.text.includes('complete original study')));
+      }
+      const result = await importLiteratureSource(paper, { ...fullScope, notebookId: 'empty-fulltext' }, {
+        fetchFullText: async () => ({ ...await fullFixture(), fullText: ' \n ' }),
+      });
+      assert.equal(result.fullText.status, 'partial');
+      assert.equal(result.source.literature?.evidenceScope, 'abstract');
+    });
+
+    await check('concurrent imports share one full-text acquisition and persist one source', async () => {
+      const concurrentScope = { ...fullScope, notebookId: 'concurrent-fulltext' };
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      let writes = 0;
+      let downloads = 0;
+      const originalMutate = LocalJsonSourceStoreAdapter.prototype.mutate;
+      const mutationMock = mock.method(LocalJsonSourceStoreAdapter.prototype, 'mutate', async function (
+        this: LocalJsonSourceStoreAdapter, ...args: Parameters<typeof originalMutate>
+      ) {
+        const result = await originalMutate.apply(this, args);
+        if (++writes === 16) release();
+        return result;
+      });
+      try {
+        const results = await Promise.all(Array.from({ length: 16 }, () => importLiteratureSource(paper, concurrentScope, {
+          fetchFullText: async () => { downloads++; await gate; return fullFixture(); },
+        })));
+        assert.equal(downloads, 1);
+        assert.equal(results.filter(result => !result.alreadyExists).length, 1);
+        assert(results.every(result => result.source.literature?.evidenceScope === 'fulltext'));
+        assert.equal((await listIngestionSources(concurrentScope)).length, 1);
+      } finally {
+        release();
+        mutationMock.mock.restore();
+      }
+    });
+
+    await check('late acquisition success or failure never overwrites another committed full text', async () => {
+      for (const fails of [true, false]) {
+        const raceScope = { ...fullScope, notebookId: `competing-fulltext-${fails}` };
+        const first = await importLiteratureSource(paper, raceScope);
+        const result = await importLiteratureSource(paper, raceScope, { fetchFullText: async () => {
+          await new LocalJsonSourceStoreAdapter().mutate(store => {
+            const source = store.sources.find(item => item.id === first.source.id)!;
+            source.literature = { ...source.literature!, evidenceScope: 'fulltext' };
+            source.chunks = buildSourceChunks([{
+              id: source.id, title: source.title, rawContent: 'Other committed full-text evidence.',
+              literature: { evidenceScope: 'fulltext' },
+            }]);
+            source.chunkCount = source.chunks.length;
+            source.tokenEstimate = source.chunks.reduce((total, chunk) => total + chunk.tokenEstimate, 0);
+            return store;
+          });
+          if (fails) throw new FullTextError('network_error', 'Late failed request');
+          return fullFixture();
+        } });
+        assert.equal(result.fullText.status, 'existing');
+        assert.equal(result.source.literature?.evidenceScope, 'fulltext');
+        assert(result.source.chunks.some(chunk => chunk.text.includes('Other committed full-text evidence.')));
+        assert(!result.source.chunks.some(chunk => chunk.text.includes('complete original study')));
+        assert.deepEqual(await getIngestionSource(first.source.id, raceScope), result.source);
+      }
+    });
+
+    await check('upgrade persistence errors reject instead of reporting a partial download success', async () => {
+      const storageScope = { ...fullScope, notebookId: 'fulltext-store-failure' };
+      const first = await importLiteratureSource(paper, storageScope);
+      const originalMutate = LocalJsonSourceStoreAdapter.prototype.mutate;
+      let writes = 0;
+      const mutationMock = mock.method(LocalJsonSourceStoreAdapter.prototype, 'mutate', async function (
+        this: LocalJsonSourceStoreAdapter, ...args: Parameters<typeof originalMutate>
+      ) {
+        if (++writes === 2) throw new Error('Full-text storage unavailable');
+        return originalMutate.apply(this, args);
+      });
+      try {
+        await assert.rejects(importLiteratureSource(paper, storageScope, { fetchFullText: fullFixture }), /storage unavailable/);
+        assert.deepEqual(await getIngestionSource(first.source.id, storageScope), first.source);
+      } finally {
+        mutationMock.mock.restore();
+      }
+      const retried = await importLiteratureSource(paper, storageScope, { fetchFullText: fullFixture });
+      assert.equal(retried.fullText.status, 'downloaded');
+    });
+
+    await check('API rejects supplied full text instead of treating client data as evidence', async () => {
+      await rejectBadBodies([{ ...apiBody, fullText: 'forged original evidence' }, { ...apiBody, evidenceScope: 'fulltext' }]);
+      const result = await readSuccess(await apiRequest(apiBody), 200);
+      assert.equal(result.fullText.status, 'partial');
+      assert.equal(result.source.literature?.evidenceScope, 'abstract');
+    });
+
     assertFetchBoundary();
     const statusSummary = [...apiStatuses.entries()].sort(([a], [b]) => a - b)
       .map(([status, count]) => `${status}=${count}`).join(', ');
     console.log(`Literature import: ${passed} test groups passed; API ${statusSummary}; ${authCalls.length} stubbed auth/me calls; real temporary JSON store; no real network/downloads/embeddings; no live Postgres.`);
   } finally {
     globalThis.fetch = previousFetch;
+    dnsMock.mock.restore();
+    httpsMock.mock.restore();
     for (const [key, value] of previousEnv) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
