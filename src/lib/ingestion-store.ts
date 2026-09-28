@@ -881,6 +881,7 @@ export async function importLiteratureSource(
     provider: literature.provider,
     evidenceScope: abstract ? 'abstract' : 'metadata',
     retrievedAt: literature.retrievedAt,
+    oaLocations: literature.oaLocations,
   };
   let result: { source: StoredSourceRecord; alreadyExists: boolean } | undefined;
   await getSourceStoreAdapter().mutate(store => {
@@ -933,6 +934,7 @@ export async function importLiteratureSource(
       doi: existingMetadata.doi || metadata.doi,
       arxivId: existingMetadata.arxivId || metadata.arxivId,
       url: metadata.url || existingMetadata.url,
+      oaLocations: metadata.oaLocations || existingMetadata.oaLocations,
     }, options.fetchFullText || fetchLiteratureFullText);
     literatureUpgrades.set(sourceId, upgrade);
   }

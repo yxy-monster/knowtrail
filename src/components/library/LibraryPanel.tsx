@@ -404,6 +404,7 @@ export function LibraryPanel({
   const [newFolderName, setNewFolderName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const lastAutoExpandedFolderRef = useRef<string | null | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
@@ -451,9 +452,12 @@ export function LibraryPanel({
   }, [showSourceGuide]);
 
   useEffect(() => {
-    if (folders.length === 0 || expandedFolders.size > 0) return;
-    setExpandedFolders(new Set([activeFolderId || folders[0].id]));
-  }, [activeFolderId, expandedFolders.size, folders]);
+    if (folders.length === 0) return;
+    const targetId = activeFolderId || folders[0].id;
+    if (lastAutoExpandedFolderRef.current === targetId) return;
+    lastAutoExpandedFolderRef.current = targetId;
+    setExpandedFolders(new Set([targetId]));
+  }, [activeFolderId, folders]);
 
   // Citation click-through: expand the owning folder, scroll to the source and flash it.
   const [flashPaperId, setFlashPaperId] = useState<string | null>(null);
@@ -986,6 +990,7 @@ export function LibraryPanel({
   const handleFolderClick = useCallback((folderId: string) => {
     setActiveFolder(folderId);
     setUploadTargetFolderId(folderId);
+    lastAutoExpandedFolderRef.current = folderId;
     setExpandedFolders(prev => {
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId); else next.add(folderId);
@@ -1107,13 +1112,25 @@ export function LibraryPanel({
               <button
                 type="button"
                 data-testid="library-open-source-matrix"
-                onClick={() => setIsSourceMatrixOpen(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSourceMatrixOpen(true);
+                }}
                 className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2"
+                style={{ cursor: 'pointer', pointerEvents: 'auto' }}
               >
                 <FileSpreadsheet className="h-3 w-3" /> 文献矩阵
               </button>
             )}
-            <button onClick={clearSelection} className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearSelection();
+              }}
+              className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2"
+              style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+            >
               <X className="h-3 w-3" /> 清除
             </button>
           </div>
@@ -1180,7 +1197,7 @@ export function LibraryPanel({
       {/* Paper list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         {filteredFolders.length === 0 ? (
-          <div className="text-center py-16">
+          <div className="flex flex-col items-center justify-center min-h-full py-8">
             <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-4">
               <FileText className="h-7 w-7 text-zinc-700" />
             </div>

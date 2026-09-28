@@ -213,6 +213,31 @@ function isExplicitPdfUrl(value: string): boolean {
   }
 }
 
+function isLikelyHtml(buffer: Buffer): boolean {
+  const head = buffer.subarray(0, Math.min(buffer.length, 1024)).toString('utf8').trimStart().toLowerCase();
+  return head.startsWith('<!doctype html') || head.startsWith('<html');
+}
+
+function extractPdfUrlsFromHtml(buffer: Buffer, baseUrl: string): string[] {
+  const html = buffer.toString('utf8', 0, Math.min(buffer.length, 512 * 1024));
+  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  const seen = new Set<string>();
+  const results: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = hrefRe.exec(html)) !== null && results.length < 5) {
+    try {
+      const resolved = new URL(match[1], baseUrl);
+      if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') continue;
+      const path = decodeURIComponent(resolved.pathname);
+      if (/\.pdf(?:\?|$)/i.test(path) && !seen.has(resolved.href)) {
+        seen.add(resolved.href);
+        results.push(resolved.href);
+      }
+    } catch { /* skip malformed URLs */ }
+  }
+  return results;
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ?
     value as Record<string, unknown> : null;
@@ -267,21 +292,38 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 }
 
-async function fetchCandidate(pdfUrl: string, deadline: number): Promise<string> {
+async function fetchCandidate(pdfUrl: string, deadline: number, tried?: Set<string>): Promise<string> {
   return withinDeadline(deadline, async signal => {
     const buffer = await requestBody(pdfUrl, signal, MAX_PDF_BYTES);
     signal.throwIfAborted();
+    if (!buffer.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+      if (isLikelyHtml(buffer)) {
+        const pdfLinks = extractPdfUrlsFromHtml(buffer, pdfUrl);
+        for (const link of pdfLinks) {
+          if ((tried?.has(link)) || (tried && tried.size >= MAX_CANDIDATES)) continue;
+          tried?.add(link);
+          try {
+            const linkBuffer = await requestBody(link, signal, MAX_PDF_BYTES);
+            signal.throwIfAborted();
+            if (linkBuffer.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+              return extractPdfText(linkBuffer);
+            }
+          } catch { /* try next link */ }
+        }
+      }
+      throw new FullTextError('extraction_failed', '下载内容不是 PDF，无法提取全文');
+    }
     return extractPdfText(buffer);
   });
 }
 
 export async function fetchLiteratureFullText(
-  literature: Pick<LiteratureMetadata, 'doi' | 'arxivId' | 'url'>,
+  literature: Pick<LiteratureMetadata, 'doi' | 'arxivId' | 'url' | 'oaLocations'>,
 ): Promise<FullTextResult> {
   const deadline = Date.now() + TOTAL_TIMEOUT_MS;
   const doi = normalizeDoi(literature.doi);
   const arxivUrl = arxivPdfUrl(literature.arxivId);
-  const candidates = [arxivUrl, isExplicitPdfUrl(literature.url) ? literature.url : null];
+  const candidates = [arxivUrl, literature.url || null];
   const tried = new Set<string>();
   let failure: FullTextError | undefined;
   const tryCandidates = async (urls: (string | null)[], source: FullTextResult['source']) => {
@@ -289,7 +331,7 @@ export async function fetchLiteratureFullText(
       if (!pdfUrl || tried.has(pdfUrl) || tried.size >= MAX_CANDIDATES) continue;
       tried.add(pdfUrl);
       try {
-        const fullText = await fetchCandidate(pdfUrl, deadline);
+        const fullText = await fetchCandidate(pdfUrl, deadline, tried);
         return { fullText, pdfUrl, source, charCount: fullText.length };
       } catch (error: unknown) {
         failure = asNetworkError(error);
@@ -300,6 +342,11 @@ export async function fetchLiteratureFullText(
   };
   const direct = await tryCandidates(candidates, 'direct');
   if (direct) return direct;
+  const oaPdfUrls = (literature.oaLocations || [])
+    .map(loc => loc.pdfUrl || loc.url)
+    .filter((url): url is string => !!url);
+  const oa = await tryCandidates(oaPdfUrls, 'oa');
+  if (oa) return oa;
   if (doi && Date.now() < deadline) {
     try {
       const { pdfUrls } = await discover(doi, deadline);
@@ -319,5 +366,5 @@ export async function fetchFullText(doi: string): Promise<FullTextResult> {
 }
 
 export async function fetchFullTextFromUrl(pdfUrl: string): Promise<string> {
-  return fetchCandidate(pdfUrl, Date.now() + TOTAL_TIMEOUT_MS);
+  return fetchCandidate(pdfUrl, Date.now() + TOTAL_TIMEOUT_MS, new Set<string>());
 }

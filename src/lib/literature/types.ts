@@ -40,7 +40,7 @@ export interface LiteraturePaper {
   fullText?: string;
 }
 
-export interface LiteratureMetadata extends Omit<LiteraturePaper, 'oaLocations' | 'fullText'> {
+export interface LiteratureMetadata extends Omit<LiteraturePaper, 'fullText'> {
   retrievedAt: string;
 }
 
@@ -53,7 +53,7 @@ export interface LiteratureResult extends LiteraturePaper {
 export interface FullTextResult {
   fullText: string;
   pdfUrl: string;
-  source: 'unpaywall' | 'direct';
+  source: 'unpaywall' | 'direct' | 'oa';
   charCount: number;
 }
 

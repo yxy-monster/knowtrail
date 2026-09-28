@@ -47,9 +47,9 @@ export function resolveStudioGenerationReadiness(
     envFirst(env, 'SITIAN_API_TOKEN'),
   ]);
   const compatibleImageReady = hasAll([
-    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_BASE', 'ARK_IMAGE_API_BASE', 'OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'),
-    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'),
-    envFirst(env, 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL'),
+    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_BASE', 'ARK_IMAGE_API_BASE', 'OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE', 'DASHSCOPE_API_BASE'),
+    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY', 'DASHSCOPE_API_KEY'),
+    envFirst(env, 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL', 'DASHSCOPE_IMAGE_MODEL'),
   ]);
   const imageReady = sitianReady || compatibleImageReady;
 

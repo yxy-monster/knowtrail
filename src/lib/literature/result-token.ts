@@ -37,6 +37,12 @@ const signedPayloadSchema: z.ZodType<SignedPayload> = z.object({
   provider: z.string().trim().min(1).max(200),
   evidenceScope: z.enum(['abstract', 'metadata', 'fulltext']),
   retrievedAt: z.string().datetime({ offset: true }),
+  oaLocations: z.array(z.object({
+    url: z.string().trim().max(8_192),
+    pdfUrl: z.string().trim().max(8_192).optional(),
+    source: z.string().trim().max(200),
+    license: z.string().trim().max(200).optional(),
+  })).optional(),
 });
 
 export function signLiteratureResult(paper: LiteraturePaper): string {
@@ -53,6 +59,7 @@ export function signLiteratureResult(paper: LiteraturePaper): string {
     provider: paper.provider,
     evidenceScope: paper.evidenceScope,
     retrievedAt: new Date().toISOString(),
+    oaLocations: paper.oaLocations,
   };
 
   const json = JSON.stringify(payload);

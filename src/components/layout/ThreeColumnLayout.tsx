@@ -12,11 +12,11 @@ interface ThreeColumnLayoutProps {
   initialMobilePanel?: 'left' | 'center' | 'right';
 }
 
-const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths-v2';
+const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths-v3';
 const MIN_PANEL = 200;
 const DIVIDER_WIDTH = 5;
 
-function readStoredWidths(): { left?: number; right?: number } {
+function readStoredWidths(): { leftPct?: number; rightPct?: number } {
   if (typeof window === 'undefined') return {};
   try {
     return JSON.parse(window.localStorage.getItem(WIDTHS_STORAGE_KEY) || '{}');
@@ -36,17 +36,26 @@ export function ThreeColumnLayout({
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [initialized, setInitialized] = useState(false);
-  const [leftWidth, setLeftWidth] = useState(0);
-  const [rightWidth, setRightWidth] = useState(0);
+  const [leftPct, setLeftPct] = useState(1 / 3);
+  const [rightPct, setRightPct] = useState(1 / 3);
+  const leftPctRef = useRef(1 / 3);
+  const rightPctRef = useRef(1 / 3);
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const startXRef = useRef(0);
-  const startLeftRef = useRef(0);
-  const startRightRef = useRef(0);
+  const startLeftPctRef = useRef(1 / 3);
+  const startRightPctRef = useRef(1 / 3);
 
+  // Derive pixel widths from percentages and current container width
+  const available = Math.max(0, containerWidth - DIVIDER_WIDTH * 2);
+  const leftWidth = initialized && containerWidth > 0 ? Math.floor(available * leftPct) : 0;
+  const rightWidth = initialized && containerWidth > 0 ? Math.floor(available * rightPct) : 0;
+  const centerWidth = Math.max(0, available - leftWidth - rightWidth);
+
+  // ResizeObserver: recalculate pixel widths from stored percentages on every resize
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -58,52 +67,54 @@ export function ThreeColumnLayout({
     return () => ro.disconnect();
   }, []);
 
+  // Initialize from localStorage on first valid container width
   useEffect(() => {
     if (containerWidth <= 0 || initialized) return;
     const stored = readStoredWidths();
-    const available = containerWidth - DIVIDER_WIDTH * 2;
-    const third = Math.floor(available / 3);
-
-    const left = stored.left && stored.left >= MIN_PANEL ? stored.left : (defaultLeftWidth ?? third);
-    const right = stored.right && stored.right >= MIN_PANEL ? stored.right : (defaultRightWidth ?? third);
-    const maxSide = Math.max(MIN_PANEL, available - MIN_PANEL);
-
-    setLeftWidth(Math.min(left, maxSide));
-    setRightWidth(Math.min(right, maxSide));
+    const third = 1 / 3;
+    const lp = stored.leftPct && stored.leftPct > 0 ? stored.leftPct : third;
+    const rp = stored.rightPct && stored.rightPct > 0 ? stored.rightPct : third;
+    setLeftPct(lp);
+    setRightPct(rp);
+    leftPctRef.current = lp;
+    rightPctRef.current = rp;
     setInitialized(true);
-  }, [containerWidth, initialized, defaultLeftWidth, defaultRightWidth]);
-
-  const centerWidth = Math.max(0, containerWidth - leftWidth - rightWidth - DIVIDER_WIDTH * 2);
+  }, [containerWidth, initialized]);
 
   const handleMouseDown = useCallback((side: 'left' | 'right', e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(side);
     startXRef.current = e.clientX;
-    startLeftRef.current = leftWidth;
-    startRightRef.current = rightWidth;
-  }, [leftWidth, rightWidth]);
+    startLeftPctRef.current = leftPctRef.current;
+    startRightPctRef.current = rightPctRef.current;
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragging) return;
+    if (!dragging || containerWidth <= 0) return;
     const delta = e.clientX - startXRef.current;
-    const available = containerWidth - DIVIDER_WIDTH * 2;
-    const maxSide = Math.max(MIN_PANEL, available - MIN_PANEL);
+    const avail = containerWidth - DIVIDER_WIDTH * 2;
+    if (avail <= 0) return;
 
     if (dragging === 'left') {
-      const newLeft = Math.max(MIN_PANEL, Math.min(maxSide, startLeftRef.current + delta));
-      setLeftWidth(newLeft);
+      const newPct = Math.max(MIN_PANEL / avail, Math.min(1 - MIN_PANEL / avail, startLeftPctRef.current + delta / avail));
+      setLeftPct(newPct);
+      leftPctRef.current = newPct;
     } else {
-      const newRight = Math.max(MIN_PANEL, Math.min(maxSide, startRightRef.current - delta));
-      setRightWidth(newRight);
+      const newPct = Math.max(MIN_PANEL / avail, Math.min(1 - MIN_PANEL / avail, startRightPctRef.current - delta / avail));
+      setRightPct(newPct);
+      rightPctRef.current = newPct;
     }
   }, [dragging, containerWidth]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     try {
-      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({ left: leftWidth, right: rightWidth }));
+      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({
+        leftPct: leftPctRef.current,
+        rightPct: rightPctRef.current,
+      }));
     } catch { /* quota — persistence is best-effort */ }
-  }, [leftWidth, rightWidth]);
+  }, []);
 
   useEffect(() => {
     if (dragging) {

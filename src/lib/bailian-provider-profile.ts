@@ -62,6 +62,23 @@ export async function resolveRequestRuntimeAIConfig(
 ): Promise<Partial<RuntimeAIConfig>> {
   try {
     const profile = await resolveMemberBailianProfile(request);
+    const envConfig = serverRuntimeAIConfigFromEnv();
+
+    // Prefer ARK/OpenAI env vars over DashScope when available
+    const useEnvProvider = envConfig.apiBase && envConfig.apiKey &&
+      !envConfig.apiBase.includes('dashscope.aliyuncs.com');
+
+    if (useEnvProvider) {
+      return {
+        ...envConfig,
+        providerId: profile.provider_id,
+        workspaceId: profile.workspace_id,
+        region: profile.region,
+        imageModel: profile.image_model,
+        ttsModel: profile.tts_model,
+      };
+    }
+
     return {
       apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       apiKey: profile.api_key,

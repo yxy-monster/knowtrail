@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { resolveAccountSessionFromRequest } from '@/lib/account-session';
+import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { importLiteratureSource } from '@/lib/ingestion-store';
 import { MAX_LITERATURE_RESULT_TOKEN_LENGTH, verifyLiteratureResult } from '@/lib/literature/result-token';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
@@ -15,9 +15,14 @@ export async function POST(request: NextRequest) {
   try {
     const session = await resolveAccountSessionFromRequest(request);
     if (!session?.member.id) {
-      return NextResponse.json({ error: '请先登录账号，再将文献加入文献本。' }, { status: 401 });
+      if (!accountAuthRequired()) {
+        ownerMemberId = 'local';
+      } else {
+        return NextResponse.json({ error: '请先登录账号，再将文献加入文献本。' }, { status: 401 });
+      }
+    } else {
+      ownerMemberId = session.member.id;
     }
-    ownerMemberId = session.member.id;
   } catch {
     return NextResponse.json({ error: '账号登录已过期，请重新登录。' }, { status: 401 });
   }
